@@ -17,14 +17,10 @@
   .bar label{font-weight:600}
   .bar input[type="number"]{width:6rem;padding:4px 6px; font:14px var(--ui-font);}
   .bar input[type="range"]{width:160px}
-  .spacer{width:3cm; height:1px}
+  .spacer{width:3cm;height:1px}
   .wrap{display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:10px; height:calc(100% - 58px);}
   .panel{background:#fff; border:1px solid #e5e5e5; border-radius:10px; padding:10px; display:flex; align-items:center; justify-content:center; position:relative;}
   canvas{width:100%; height:100%; max-height:calc(100% - 20px);}
-  .tip{
-    position:absolute; left:12px; top:12px; background:#fff7d1; color:#6b4e00;
-    padding:6px 8px; border-radius:8px; border:1px solid #f0dea7; font:12px/1.4 var(--ui-font);
-  }
   .float{
     position:absolute; background:rgba(255,255,255,.92); border:1px solid #ccc; border-radius:8px;
     padding:6px 8px; font:12px/1.3 var(--ui-font); pointer-events:none;
@@ -60,10 +56,10 @@
   // ====== 状態 ======
   const state = { a: 8, x: 4 };
   let showTrace = false;
-  const trace = [];                   // [{x,y}, ...] in math coords
+  const trace = [];
   const TRACE_LIMIT = 20000;
 
-  // ====== UI 取得 ======
+  // ====== UI ======
   const aIn = document.getElementById('aIn');
   const xIn = document.getElementById('xIn');
   const xRange = document.getElementById('xRange');
@@ -73,68 +69,71 @@
   const tip = document.getElementById('tooltip');
   const g1 = geo.getContext('2d');
   const g2 = gph.getContext('2d');
+  g1.imageSmoothingEnabled = true;   // ★補間ON
+  g2.imageSmoothingEnabled = true;
 
-  // ====== Rope テクスチャ（タイル画像） ======
+  // ====== Rope テクスチャ（薄い茶色ベース + 黒の“///”のみ） ======
   function makeRopeTile(thickness){
     const h = Math.max(10, Math.round(thickness));
-    const w = Math.max(64, h*4); // 横幅
+    const w = Math.max(96, h*5); // 広めにして位相継承を安定
     const c = document.createElement('canvas'); c.width=w; c.height=h;
     const ctx = c.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
 
-    // ベース：茶色（中央明るく上下暗い）
+    // ベース：薄い茶色（中央明るく上下暗いシェーディング）
+    const base = {r:218, g:192, b:144}; // ★薄茶
     for(let y=0;y<h;y++){
       const ny = (y+0.5)/h;
-      const shade = 0.70 + 0.30*Math.cos((ny-0.5)*Math.PI);
-      const base = {r:180, g:140, b:80};
+      const shade = 0.72 + 0.28*Math.cos((ny-0.5)*Math.PI); // 中央ハイライト
       const r = Math.round(base.r*shade), g = Math.round(base.g*shade), b = Math.round(base.b*shade);
       ctx.fillStyle = `rgb(${r},${g},${b})`;
       ctx.fillRect(0,y,w,1);
     }
 
-    // 斜め縞を「/」「\」の2層で敷き詰め（黒系・細め）
-    const period = Math.max(6, Math.round(h*0.6));
-    const stripeW = Math.max(2, Math.floor(period/2));
+    // “///” 斜線（黒・やや細め）— 方向は -45°
+    // 周期を高さに連動。w を割り切るように調整してシームレス。
+    let period = Math.max(6, Math.round(h*0.55));
+    let N = Math.max(16, Math.round(w/period));
+    period = Math.floor(w/N);
+    const stripeW = Math.max(2, Math.round(Math.min(3, h*0.20))); // 2〜3px 目安
+
     ctx.save();
     ctx.translate(w/2, h/2);
-    const drawLayer = (rot, aBright, aDark) => {
-      ctx.save();
-      ctx.rotate(rot);
-      // 明線（薄灰）
-      ctx.globalAlpha = aBright;
-      ctx.fillStyle = 'rgb(255,255,255)';
-      for(let i=-w;i<w;i+=period){
-        ctx.fillRect(i, -w, stripeW, 2*w);
-      }
-      // 暗線（黒）—> 黒に
-      ctx.globalAlpha = aDark;
-      ctx.fillStyle = 'rgb(0,0,0)';
-      for(let i=-w+stripeW;i<w;i+=period){
-        ctx.fillRect(i, -w, stripeW, 2*w);
-      }
-      ctx.restore();
-    };
-    drawLayer(-Math.PI/4, 0.18, 0.38); // ／
-    drawLayer(+Math.PI/4, 0.10, 0.22); // ＼
+    ctx.rotate(-Math.PI/4);
+    ctx.fillStyle = '#000';
+    ctx.globalAlpha = 0.42;   // ★縞の濃さ（黒）
+    for(let x=-w; x<w; x+=period){
+      ctx.fillRect(x, -w, stripeW, 2*w);
+    }
     ctx.restore();
 
-    // かすれノイズ
-    const noiseN = Math.floor(w*h/60);
+    // うっすら横筋ノイズで繊維感
+    const noiseN = Math.floor(w*h/40);
+    ctx.globalAlpha = 0.08;
+    ctx.fillStyle = '#000';
     for(let i=0;i<noiseN;i++){
-      const x = (Math.random()*w)|0, y=(Math.random()*h)|0;
-      ctx.fillStyle = 'rgba(0,0,0,0.06)'; ctx.fillRect(x,y,1,1);
+      const yy = (Math.random()*h)|0;
+      const xx = (Math.random()*w)|0;
+      const ww = 1 + (Math.random()*3)|0;
+      ctx.fillRect(xx, yy, ww, 1);
     }
+    ctx.globalAlpha = 1;
+
     return c;
   }
 
-  // ====== Rope 描画（エッジ & アーク） ======
+  // ====== Rope 描画（位相継承で1本に見せる） ======
   function drawRopeEdge(ctx, tile, x1,y1,x2,y2, phase){
     const dx=x2-x1, dy=y2-y1, len=Math.hypot(dx,dy);
     if(len<0.5) return phase;
     const ang=Math.atan2(dy,dx);
     const th = tile.height, tw = tile.width;
+
     ctx.save();
-    ctx.translate(x1,y1); ctx.rotate(ang);
-    // 手動タイル貼り（位相=横方向ずらし）
+    ctx.translate(x1,y1);
+    ctx.rotate(ang);
+
+    // タイルを手動で敷き詰め（phaseでずらし）
     let s = -phase;
     while(s < len){
       const w = Math.min(tw, len - s);
@@ -145,10 +144,12 @@
     return (phase + len) % tw;
   }
 
+  // ★角の荒れ対策：弧の分割をかなり細かく（約2pxピッチ）
   function drawRopeArc(ctx, tile, cx,cy,r, ang0,ang1, phase){
     const arcLen = r * Math.abs(ang1-ang0);
-    const seg = 6; // px
-    const steps = Math.max(3, Math.ceil(arcLen/seg));
+    const segMax = 2.2; // px：細かいほど滑らか
+    const steps = Math.max(6, Math.ceil(arcLen / segMax));
+
     let px=cx+r*Math.cos(ang0), py=cy+r*Math.sin(ang0);
     for(let i=1;i<=steps;i++){
       const t=i/steps, a=ang0+(ang1-ang0)*t;
@@ -160,21 +161,19 @@
   }
 
   function drawRopeRect(ctx, x,y,w,h, thickness){
-    // 角の丸み（太さ×3.5 まで、辺長の半分を超えない）
-    const r = Math.max(0, Math.min(thickness*3.5, Math.min(w,h)/2 - 1));
+    const r = Math.max(0, Math.min(thickness*3.5, Math.min(w,h)/2 - 1)); // 丸み
     const tile = makeRopeTile(thickness);
     let phase = 0;
 
     if(r>0.1){
-      // 反時計回り
-      phase = drawRopeEdge(ctx, tile, x+r, y, x+w-r, y, phase);                   // 上辺
-      phase = drawRopeArc (ctx, tile, x+w-r, y+r, r, -Math.PI/2, 0, phase);       // 右上
-      phase = drawRopeEdge(ctx, tile, x+w, y+r, x+w, y+h-r, phase);               // 右辺
-      phase = drawRopeArc (ctx, tile, x+w-r, y+h-r, r, 0, Math.PI/2, phase);      // 右下
-      phase = drawRopeEdge(ctx, tile, x+w-r, y+h, x+r, y+h, phase);               // 下辺
-      phase = drawRopeArc (ctx, tile, x+r, y+h-r, r, Math.PI/2, Math.PI, phase);  // 左下
-      phase = drawRopeEdge(ctx, tile, x, y+h-r, x, y+r, phase);                   // 左辺
-      phase = drawRopeArc (ctx, tile, x+r, y+r, r, Math.PI, 3*Math.PI/2, phase);  // 左上
+      phase = drawRopeEdge(ctx, tile, x+r, y, x+w-r, y, phase);
+      phase = drawRopeArc (ctx, tile, x+w-r, y+r, r, -Math.PI/2, 0, phase);
+      phase = drawRopeEdge(ctx, tile, x+w, y+r, x+w, y+h-r, phase);
+      phase = drawRopeArc (ctx, tile, x+w-r, y+h-r, r, 0, Math.PI/2, phase);
+      phase = drawRopeEdge(ctx, tile, x+w-r, y+h, x+r, y+h, phase);
+      phase = drawRopeArc (ctx, tile, x+r, y+h-r, r, Math.PI/2, Math.PI, phase);
+      phase = drawRopeEdge(ctx, tile, x, y+h-r, x, y+r, phase);
+      phase = drawRopeArc (ctx, tile, x+r, y+r, r, Math.PI, 3*Math.PI/2, phase);
     }else{
       phase = drawRopeEdge(ctx, tile, x, y, x+w, y, phase);
       phase = drawRopeEdge(ctx, tile, x+w, y, x+w, y+h, phase);
@@ -182,23 +181,22 @@
       phase = drawRopeEdge(ctx, tile, x, y+h, x, y, phase);
     }
 
-    // 薄い黒の縁取り
+    // ★黒い輪郭
     ctx.save();
-    ctx.lineWidth = Math.max(1.5, thickness*0.10);
+    ctx.lineWidth = Math.max(1.6, thickness*0.10);
     ctx.strokeStyle = '#000';
-    const r2 = Math.max(0, r);
     const path = new Path2D();
-    path.moveTo(x+r2, y);
-    path.arcTo(x+w, y,   x+w, y+h, r2);
-    path.arcTo(x+w, y+h, x,   y+h, r2);
-    path.arcTo(x,   y+h, x,   y,   r2);
-    path.arcTo(x,   y,   x+w, y,   r2);
+    path.moveTo(x+r, y);
+    path.arcTo(x+w, y,   x+w, y+h, r);
+    path.arcTo(x+w, y+h, x,   y+h, r);
+    path.arcTo(x,   y+h, x,   y,   r);
+    path.arcTo(x,   y,   x+w, y,   r);
     path.closePath();
     ctx.stroke(path);
     ctx.restore();
   }
 
-  // ====== 幾何パネル描画 ======
+  // ====== 幾何パネル ======
   function drawGeometry(){
     const W = geo.width, H = geo.height;
     g1.clearRect(0,0,W,H);
@@ -211,19 +209,17 @@
     const x = Math.round(margin + (areaW - w)/2);
     const y = Math.round(H - margin - h);
 
-    // ロープの太さ（短辺の8%、12〜48px）
+    // 短辺の8%（12〜48px）
     const thickness = Math.max(12, Math.min(48, Math.min(w,h)*0.08));
 
-    // ロープ
     drawRopeRect(g1, x, y, w, h, thickness);
 
-    // 寸法とラベル
+    // 寸法とボックス
     g1.save();
     g1.strokeStyle = '#555'; g1.fillStyle='#333';
     g1.lineWidth = 1.25; g1.font = '14px var(--ui-font)';
 
     const d3 = v => Number(v).toFixed(3).replace(/\.?0+$/,'');
-    // 右 縦寸
     const tx = Math.round(x + w + 24);
     g1.beginPath();
     g1.moveTo(tx, y); g1.lineTo(tx, y+h);
@@ -232,7 +228,6 @@
     g1.stroke();
     g1.fillText(`縦の長さ = ${d3(state.x)}`, tx+8, Math.round(y + h/2));
 
-    // 下 横寸
     const ty = Math.round(y + h + 28);
     g1.beginPath();
     g1.moveTo(x, ty); g1.lineTo(x+w, ty);
@@ -242,24 +237,20 @@
     const wLabel = `横の長さ = ${d3(state.a - state.x)}`;
     g1.fillText(wLabel, Math.round(x + (w - g1.measureText(wLabel).width)/2), ty + 12);
 
-    // 情報ボックス
     const box = [
       `ロープの長さ = ${d3(2*state.a)}`,
       `縦の長さ：x = ${d3(state.x)}`,
       `横の長さ：a − x = ${d3(state.a - state.x)}`,
       `面積 = ${d3(state.x*(state.a-state.x))}`
     ];
-    const pad=8, lh=18, bx=margin, by=margin+16;
-    const maxw = Math.max(...box.map(t=>g1.measureText(t).width));
+    const pad=8, lh=18, bx=margin, by=margin+16, maxw=Math.max(...box.map(t=>g1.measureText(t).width));
     g1.fillStyle='#fff8d2'; g1.strokeStyle='#a07d10';
-    g1.beginPath();
-    roundRect(g1, bx-8, by-22, maxw+pad*2, lh*4+18, 10); g1.fill(); g1.stroke();
-    g1.fillStyle='#444';
-    box.forEach((t,i)=> g1.fillText(t,bx, by + i*lh));
+    g1.beginPath(); roundRect(g1, bx-8, by-22, maxw+pad*2, lh*4+18, 10); g1.fill(); g1.stroke();
+    g1.fillStyle='#444'; box.forEach((t,i)=> g1.fillText(t,bx, by + i*lh));
     g1.restore();
   }
 
-  // ====== 関数パネル描画 ======
+  // ====== グラフパネル ======
   function drawGraph(){
     const W = gph.width, H = gph.height;
     g2.clearRect(0,0,W,H);
@@ -273,57 +264,43 @@
     const X = vx => marginL + (vx - xMin)/(xMax-xMin) * plotW;
     const Y = vy => marginT + (1 - (vy - yMin)/(yMax - yMin)) * plotH;
 
-    // 背景
     g2.fillStyle='#f5f5f5'; g2.fillRect(marginL,marginT,plotW,plotH);
-    // グリッド
     g2.strokeStyle='#e0e0e0'; g2.lineWidth=1;
     const gx=10, gy=10;
     for(let i=0;i<=gx;i++){ const sx=Math.round(X(xMin+(xMax-xMin)*i/gx)); g2.beginPath(); g2.moveTo(sx,marginT); g2.lineTo(sx,marginT+plotH); g2.stroke(); }
     for(let j=0;j<=gy;j++){ const sy=Math.round(Y(yMin+(yMax-yMin)*j/gy)); g2.beginPath(); g2.moveTo(marginL,sy); g2.lineTo(marginL+plotW,sy); g2.stroke(); }
 
-    // 軸
     g2.strokeStyle='#555'; g2.lineWidth=1.6;
     g2.beginPath(); g2.moveTo(marginL, marginT+plotH); g2.lineTo(marginL+plotW, marginT+plotH); g2.stroke();
     g2.beginPath(); g2.moveTo(marginL, marginT); g2.lineTo(marginL, marginT+plotH); g2.stroke();
 
-    // 目盛ラベル
     g2.fillStyle='#555'; g2.font='12px var(--ui-font)';
     const d2 = v => Number(v).toFixed(2).replace(/\.?0+$/,'');
     for(let i=0;i<=gx;i++){
-      const xv = xMin+(xMax-xMin)*i/gx;
-      const sx = Math.round(X(xv));
-      const s = d2(xv);
+      const xv = xMin+(xMax-xMin)*i/gx, sx=Math.round(X(xv)), s=d2(xv);
       g2.fillText(s, sx - g2.measureText(s).width/2, marginT+plotH+16);
     }
     for(let j=0;j<=gy;j++){
-      const yv = yMin+(yMax-yMin)*j/gy;
-      const sy = Math.round(Y(yv));
-      const s = d2(yv);
+      const yv = yMin+(yMax-yMin)*j/gy, sy=Math.round(Y(yv)), s=d2(yv);
       g2.fillText(s, marginL - 6 - g2.measureText(s).width, sy+4);
     }
     g2.fillText('縦の長さ', marginL+plotW+8, marginT+plotH+16);
     g2.fillText('面積', marginL-22, marginT-8);
 
-    // 軌跡
     if(showTrace && trace.length>=2){
       g2.strokeStyle='#1f77b4'; g2.lineWidth=2;
-      g2.beginPath();
-      g2.moveTo(X(trace[0].x), Y(trace[0].y));
+      g2.beginPath(); g2.moveTo(X(trace[0].x), Y(trace[0].y));
       for(let i=1;i<trace.length;i++) g2.lineTo(X(trace[i].x), Y(trace[i].y));
       g2.stroke();
     }
 
-    // 現在点
     const px=state.x, py=state.x*(state.a-state.x);
     const sx=Math.round(X(px)), sy=Math.round(Y(py));
     g2.fillStyle='#d62728'; g2.beginPath(); g2.arc(sx,sy,6,0,Math.PI*2); g2.fill();
     g2.strokeStyle='#fff'; g2.lineWidth=1.2; g2.beginPath(); g2.arc(sx,sy,6,0,Math.PI*2); g2.stroke();
 
-    // ラベル
-    const label = `(${d2(px)}, ${d2(py)})`;
-    const lw = g2.measureText(label).width;
-    g2.fillStyle='rgba(255,255,255,.92)';
-    g2.strokeStyle='#999';
+    const label = `(${d2(px)}, ${d2(py)})`, lw = g2.measureText(label).width;
+    g2.fillStyle='rgba(255,255,255,.92)'; g2.strokeStyle='#999';
     roundRect(g2, sx+8, sy-22, lw+14, 20, 8); g2.fill(); g2.stroke();
     g2.fillStyle='#333'; g2.fillText(label, sx+15, sy-8);
   }
@@ -348,13 +325,12 @@
   }
   function clearTrace(){ trace.length = 0; }
 
-  // ====== 入力イベント ======
+  // ====== 入力 ======
   function syncXSlider(){
     const ratio = state.a>0 ? state.x/state.a : 0;
     xRange.value = Math.round(ratio*1000);
   }
   function refreshAll(){
-    // リサイズした Canvas の内部ピクセルを確保（高DPI対応）
     [geo,gph].forEach(c=>{
       const r = window.devicePixelRatio||1;
       const rect = c.getBoundingClientRect();
@@ -370,7 +346,7 @@
     const ratio = state.a>0 ? state.x/state.a : 0;
     state.a = a;
     state.x = Math.min(a, Math.max(0, ratio*a));
-    xIn.min = 0; xIn.max = a; xIn.value = state.x.toFixed(3).replace(/\.?0+$/,'');
+    xIn.min = 0; xIn.max = a; xIn.value = Number(state.x.toFixed(3));
     syncXSlider();
     clearTrace(); addTracePoint(); refreshAll();
   });
@@ -378,7 +354,7 @@
   xRange.addEventListener('input', () => {
     const ratio = Number(xRange.value)/1000;
     state.x = ratio * state.a;
-    xIn.value = state.x.toFixed(3).replace(/\.?0+$/,'');
+    xIn.value = Number(state.x.toFixed(3));
     addTracePoint(); refreshAll();
   });
 
@@ -399,7 +375,7 @@
     refreshAll();
   });
 
-  // ====== グラフ上のツールチップ ======
+  // ====== グラフのツールチップ ======
   gph.addEventListener('mousemove', (e)=>{
     const rect = gph.getBoundingClientRect();
     const r = window.devicePixelRatio||1;
@@ -423,11 +399,9 @@
   });
   gph.addEventListener('mouseleave', ()=> tip.style.display='none');
 
-  // ====== 初期表示 ======
+  // 初期表示
   xIn.max = state.a; xIn.value = state.x;
   syncXSlider(); clearTrace(); addTracePoint(); refreshAll();
-
-  // レイアウトリサイズ
   new ResizeObserver(refreshAll).observe(document.querySelector('.wrap'));
 })();
 </script>
