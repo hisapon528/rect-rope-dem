@@ -22,7 +22,7 @@
     await cheerpjInit();
     cheerpjCreateDisplay(1100, 700, document.getElementById('mount'));
 
-    // ★ 追加：JAR に到達できているか事前チェック
+    // 事前チェック（JARに到達できるか）
     const head = await fetch("RectFunctionDemo.jar", { method: "HEAD" });
     if (!head.ok) {
       document.body.insertAdjacentHTML("beforeend",
@@ -32,15 +32,18 @@
       return;
     }
 
-    await cheerpjRunJar("RectFunctionDemo.jar");   // ← 相対パスのままでOK
+    // ★ポイント：JARをクラスパスに追加→Mainクラスを直接実行
+    await cheerpjAddClasspath("RectFunctionDemo.jar");
+    await cheerpjRunMain("RectFunctionDemo", []);   // ← パッケージがあるなら fully-qualified 名に
   } catch (e) {
     console.error(e);
     const m = document.createElement('div');
-    m.textContent = "起動に失敗しました。コンソール（F12→Console）にエラーが出ていないか確認してください。";
+    m.textContent = "起動に失敗しました。F12→Console のエラー内容を教えてください。";
     m.style.cssText = "position:fixed;top:10px;left:10px;background:#fff3cd;border:1px solid #ffeeba;padding:10px;border-radius:8px;color:#856404;";
     document.body.appendChild(m);
   }
 })();
 </script>
+
 </body>
 </html>
