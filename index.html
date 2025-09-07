@@ -10,20 +10,41 @@
     --ui:14px;
     --header-h:56px;
   }
-  html,body{margin:0;height:100%;background:#fafafa;
-    font:var(--ui)/1.4 system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Sans","Noto Sans JP",sans-serif;color:#333}
-  header{display:flex;align-items:center;gap:48px;padding:10px 16px;border-bottom:1px solid #e6e6e6;background:#fff;height:var(--header-h)}
-  header .grp{display:flex;align-items:center;gap:8px}
-  input[type="number"]{width:84px;padding:6px 8px;border:1px solid #cfcfcf;border-radius:8px}
-  input[type="range"]{width:160px}
-  button{appearance:none;border:1px solid #cfcfcf;border-radius:8px;background:#fff;padding:6px 10px;cursor:pointer}
-  /* 画面高にきっちりフィット（モバイルでも UI 高さに影響されない 100dvh を使用） */
-  main{
-    height:calc(100dvh - var(--header-h));
-    display:grid;grid-template-columns:minmax(320px,1fr) minmax(320px,1fr);
-    gap:var(--gap);padding:var(--gap);box-sizing:border-box;overflow:hidden;
+  /* ★ ページ全体を 2 行グリッド（ヘッダー固定 + 残り全面）にして伸び止め */
+  html,body{height:100%; margin:0}
+  body{
+    display:grid;
+    grid-template-rows: var(--header-h) 1fr;
+    height:100dvh;           /* 端末のUI高さ差分も考慮 */
+    overflow:hidden;         /* ページ全体の縦伸び防止 */
+    background:#fafafa;
+    font:var(--ui)/1.4 system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Sans","Noto Sans JP",sans-serif;
+    color:#333;
   }
-  canvas{width:100%;height:100%;background:#fff;border:1px solid #eee;border-radius:12px;box-shadow:0 1px 0 rgba(0,0,0,.03) inset}
+
+  header{
+    display:flex; align-items:center; gap:48px;
+    padding:10px 16px; border-bottom:1px solid #e6e6e6; background:#fff;
+  }
+  header .grp{display:flex; align-items:center; gap:8px}
+  input[type="number"]{width:84px; padding:6px 8px; border:1px solid #cfcfcf; border-radius:8px}
+  input[type="range"]{width:160px}
+  button{appearance:none; border:1px solid #cfcfcf; border-radius:8px; background:#fff; padding:6px 10px; cursor:pointer}
+
+  /* ★ メインは残り全面。min-height:0 で子の 100% 高を許可し、縦オーバーを抑制 */
+  main{
+    min-height:0;
+    display:grid; grid-template-columns:minmax(320px,1fr) minmax(320px,1fr);
+    gap:var(--gap); padding:var(--gap); box-sizing:border-box; overflow:hidden;
+  }
+
+  /* Canvas をブロック化（行間隙を0に）＋枠 */
+  canvas{
+    display:block;
+    width:100%; height:100%;
+    background:#fff; border:1px solid #eee; border-radius:12px;
+    box-shadow:0 1px 0 rgba(0,0,0,.03) inset;
+  }
 </style>
 </head>
 <body>
@@ -128,29 +149,30 @@ CanvasRenderingContext2D.prototype.roundRect ??= function(x,y,w,h,r){
   this.closePath();
 }
 
-/*================= ロープ用タイル生成 =================*/
+/*================= ロープ用タイル生成（薄茶 + 斜線/輪郭：黒） =================*/
 function makeRopeTile(thickness){
   const h = Math.max(8, Math.round(thickness));
   const w = Math.max(64, Math.round(h*4));
-  const c = document.createElement('canvas');
-  c.width=w; c.height=h;
+  const c = document.createElement('canvas'); c.width=w; c.height=h;
   const g = c.getContext('2d');
 
+  // ベース（薄茶）
   g.fillStyle='#d8c090'; g.fillRect(0,0,w,h);
 
+  // 円筒陰影
   const grd = g.createLinearGradient(0,0,0,h);
   grd.addColorStop(0,'rgba(0,0,0,0.20)');
   grd.addColorStop(0.5,'rgba(0,0,0,0.00)');
   grd.addColorStop(1,'rgba(0,0,0,0.25)');
   g.fillStyle=grd; g.fillRect(0,0,w,h);
 
+  // 縞（黒）密に：-45°＋+45°
   const targetPeriod = Math.max(6, Math.round(h*0.55));
   let N = Math.max(16, Math.floor(w/targetPeriod));
   if (N%2===1) N++;
   const period = Math.max(4, Math.floor(w/N));
   const stripeW = Math.max(2, Math.floor(period/2));
 
-  // -45°
   g.save();
   g.translate(w/2,h/2); g.rotate(-Math.PI/4); g.translate(-w/2,-h/2);
   g.globalAlpha = 0.85; g.fillStyle='#000';
@@ -158,7 +180,7 @@ function makeRopeTile(thickness){
   g.globalAlpha = 0.65;
   for(let i=-N;i<2*N;i++){ g.fillRect(i*period+stripeW, -w, stripeW, 2*w); }
   g.restore();
-  // +45°
+
   g.save();
   g.translate(w/2,h/2); g.rotate(+Math.PI/4); g.translate(-w/2,-h/2);
   g.globalAlpha = 0.30; g.fillStyle='#000';
@@ -179,7 +201,7 @@ function makeRopeTile(thickness){
   return {image:c,w,h};
 }
 
-/*================= ロープ描画（位相継承＋リングclip＋輪郭） =================*/
+/*================= ロープ描画（位相継承＋リングclip＋黒輪郭） =================*/
 function drawRoundRectPath(ctx,x,y,w,h,r){
   ctx.moveTo(x+r,y);
   ctx.arcTo(x+w,y, x+w,y+h, r);
@@ -219,7 +241,6 @@ function drawRopeArc(ctx,tile,cx,cy,r,a0,a1,phase){
 }
 function drawRopeRect(ctx,x,y,w,h,th){
   const tile = makeRopeTile(th);
-  // ★ 角丸半径を 0 以上にクランプ（極端に細いときの欠け防止）
   let r = Math.min(Math.min(w,h)/2-1, th*3.5);
   r = Math.max(0, r);
 
@@ -230,7 +251,6 @@ function drawRopeRect(ctx,x,y,w,h,th){
   drawRoundRectPath(ctx, x+th/2, y+th/2, w-th, h-th, Math.max(0,r-th/2));
   ctx.clip('evenodd');
 
-  // 一筆書き
   let phase=0;
   if (r>0.1){
     phase = drawRopeEdge(ctx,tile, x+r,   y,     x+w-r, y,     phase);
@@ -249,7 +269,7 @@ function drawRopeRect(ctx,x,y,w,h,th){
   }
   ctx.restore();
 
-  // 輪郭
+  // 黒輪郭
   ctx.save();
   ctx.strokeStyle='#000';
   ctx.lineWidth=Math.max(1.4, th*0.08);
@@ -266,18 +286,16 @@ function drawGeom(){
 
   ctx.font = `${GEO_FONT_PX}px system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Sans","Noto Sans JP",sans-serif`;
 
-  const margin=40;                         // 十分目の余白
+  const margin=40;
   const aw=Math.max(1, W-2*margin);
   const ah=Math.max(1, H-2*margin);
-  // どちらの辺でも必ず収まる単位長
-  const unit = Math.min(aw/state.a, ah/state.a);
+  const unit = Math.min(aw/state.a, ah/state.a);   // 常に全体が入るスケール
 
   const h = state.x*unit, w=(state.a-state.x)*unit;
-  const ox = margin + (aw-w)/2;           // 水平中央
-  const oy = H - margin;                   // 下基準
+  const ox = margin + (aw-w)/2;
+  const oy = H - margin;
 
   const thickness = Math.max(12, Math.min(48, Math.min(w,h)*0.10));
-
   drawRopeRect(ctx, ox, oy-h, w, h, thickness);
 
   // 寸法線
@@ -302,7 +320,7 @@ function drawGeom(){
   ctx.fillText(wLabel, ox + w/2 - ctx.measureText(wLabel).width/2, ty + GEO_FONT_PX*0.9);
   ctx.restore();
 
-  // 情報ボックス
+  // 情報ボックス（文字2倍・自動収まり）
   ctx.save();
   const yVal = state.x*(state.a-state.x);
   const lines = [
@@ -326,7 +344,7 @@ function drawGeom(){
   ctx.restore();
 }
 
-/*================= 関数パネル（そのまま） =================*/
+/*================= 関数パネル（従来サイズ） =================*/
 function drawGraph(){
   const ctx = fitCanvas(cvsGraph);
   const W = cvsGraph.clientWidth, H = cvsGraph.clientHeight;
@@ -383,7 +401,7 @@ function drawGraph(){
 (function init(){
   xIn.max=state.a; aIn.value=state.a; xIn.value=state.x; xRange.value=Math.round((state.x/state.a)*1000);
   drawAll();
-  // 画面サイズが変わったら両パネルを即再描画（常に全体が入る）
+  // 画面サイズが変わっても常に全面フィット
   window.addEventListener('resize', drawAll, {passive:true});
   window.addEventListener('orientationchange', drawAll, {passive:true});
 })();
