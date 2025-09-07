@@ -2,13 +2,12 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <title>HelloSwing デプロイテスト（CheerpJ）</title>
-  <!-- CheerpJ ランタイム -->
+  <title>長方形の面積 可視化（CheerpJ版）</title>
   <script src="https://cjrtnc.leaningtech.com/4.2/loader.js"></script>
   <style>
     html,body { height:100%; margin:0; background:#f5f5f5; }
     #wrap { height:100%; display:grid; place-items:center; }
-    #mount { width:400px; height:200px; max-width:98vw; max-height:96vh; }
+    #mount { width:1100px; height:700px; max-width:98vw; max-height:96vh; }
     .log { position:fixed; left:12px; top:12px; background:#fff3cd;
            border:1px solid #ffe08a; padding:10px; border-radius:8px;
            color:#7a5c00; white-space:pre-wrap; max-width:60ch; font:13px/1.5 system-ui; }
@@ -16,24 +15,27 @@
 </head>
 <body>
   <div id="wrap"><div id="mount"></div></div>
-  <pre class="log" id="log"></pre>
+  <pre class="log" id="log">CheerpJ init…</pre>
 
   <script>
     (async () => {
-      const log = (...a)=>{ const el=document.getElementById('log'); el.textContent += a.join(' ') + '\n'; console.log('[cheerpj]', ...a); };
+      const log = (...a)=>{ const el=document.getElementById('log'); el.textContent += '\n' + a.join(' '); console.log('[cheerpj]', ...a); };
 
       try {
-        log('CheerpJ init…');
-        await cheerpjInit();                                       // ランタイム初期化
-        cheerpjCreateDisplay(400, 200, document.getElementById('mount')); // 表示領域
-        log('addClasspath HelloSwing.jar …');
-        await cheerpjAddClasspath('HelloSwing.jar');               // JAR をクラスパスへ
-        log('runMain HelloSwing …');
-        await cheerpjRunMain('HelloSwing', []);                    // Main を直接実行
-        log('runMain OK');
+        await cheerpjInit();                                 // ランタイム初期化
+        cheerpjCreateDisplay(1100, 700, document.getElementById('mount'));
+
+        // JAR が本当に同階層にあるか確認（見つからないと 404）
+        const head = await fetch("RectFunctionDemo.jar", { method: "HEAD" });
+        log("HEAD RectFunctionDemo.jar ->", head.status);
+        if (!head.ok) { log("JAR が見つかりません。ファイル名/場所を確認してください。"); return; }
+
+        // ★ Community 版で確実：Manifest の Main-Class を使って JAR を起動
+        log("runJar RectFunctionDemo.jar …");
+        await cheerpjRunJar("RectFunctionDemo.jar");
+        log("runJar OK");
       } catch (e) {
-        log('ERROR:', e && e.message ? e.message : String(e));
-        alert('起動に失敗しました。Ctrl+F5 で再読み込み、またはシークレットウィンドウでお試しください。');
+        log("ERROR:", e && e.message ? e.message : String(e));
       }
     })();
   </script>
