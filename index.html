@@ -22,7 +22,7 @@
         await cheerpjInit(); // ランタイム初期化
         cheerpjCreateDisplay(1100, 700, document.getElementById('mount')); // 表示領域
         // サイトのルート（/）は CheerpJ 内では /app/ として見える
-        await cheerpjRunJar("/app/RectFunctionDemo.jar"); // JAR 実行
+        await cheerpjRunJar("RectFunctionDemo.jar");// JAR 実行
       } catch (e) {
         console.error(e);
         const m = document.createElement('div');
