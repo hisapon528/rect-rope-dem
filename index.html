@@ -25,27 +25,14 @@
       const notice = (msg) => {
         const el = document.createElement('div');
         el.textContent = msg;
-        el.style.cssText = "position:fixed;top:10px;left:10px;background:#fff3cd;border:1px solid #ffeeba;padding:10px;border-radius:8px;color:#856404;max-width:95vw;white-space:pre-wrap;";
+        el.style.cssText =
+          "position:fixed;top:10px;left:10px;background:#fff3cd;border:1px solid #ffeeba;padding:10px;border-radius:8px;color:#856404;max-width:95vw;white-space:pre-wrap;";
         document.body.appendChild(el);
       };
 
       try {
-        await cheerpjInit();                                        // ランタイム初期化
-        cheerpjCreateDisplay(1100, 700, document.getElementById('mount')); // 表示領域
+        await cheerpjInit();
+        cheerpjCreateDisplay(1100, 700, document.getElementById('mount'));
 
         // JARが取れるか軽くチェック（任意）
-        const head = await fetch("RectFunctionDemo.jar", { method: "HEAD" });
-        if (!head.ok) { notice(`JAR が見つかりません（HTTP ${head.status}）。index.html と同じ階層に RectFunctionDemo.jar を置いてください。`); return; }
-
-        // ★メインクラス実行（クラスパスは /app/ からの絶対パスで配列指定）
-        await cheerpjRunMain("RectFunctionDemo", ["/app/RectFunctionDemo.jar"]);
-      } catch (e) {
-        console.error(e);
-        notice("起動に失敗しました。\n---- error ----\n" +
-               (e && e.message ? e.message : String(e)) +
-               "\n--------------\nF12→Console もあわせて確認してください。");
-      }
-    })();
-  </script>
-</body>
-</html>
+        cons
