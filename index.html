@@ -16,45 +16,31 @@
 <body>
   <div id="wrap"><div id="mount"></div></div>
   <div class="note">JAR名は <code>RectFunctionDemo.jar</code>、同階層に <code>ひも.png</code>。</div>
-  <script>
-  (async () => {
-    const logBox = document.body.appendChild(Object.assign(document.createElement('pre'),{className:'log'}));
-    const log = (...a)=>{ logBox.textContent += a.join(' ') + '\n'; console.log('[cheerpj]', ...a); };
+<script>
+(async () => {
+  const logBox = document.body.appendChild(Object.assign(document.createElement('pre'),{style:
+    "position:fixed;left:12px;top:12px;background:#fff3cd;border:1px solid #ffe08a;padding:10px;border-radius:8px;color:#7a5c00;white-space:pre-wrap;max-width:60ch"}));
+  const log = (...a)=>{ logBox.textContent += a.join(' ') + '\n'; console.log('[cheerpj]', ...a); };
 
-    try {
-      log('CheerpJ init…');
-      await cheerpjInit();                         // 1) ランタイム初期化
-      cheerpjCreateDisplay(1100,700,document.getElementById('mount')); // 2) 表示領域
-      log('runtime ready');
+  try {
+    log('CheerpJ init…');
+    await cheerpjInit();                                 // 1) ランタイム初期化
+    cheerpjCreateDisplay(1100,700,document.getElementById('mount')); // 2) 表示領域
+    await new Promise(r => setTimeout(r, 50));           // 小さな待ち（拡張機能との競合回避）
 
-      // 3) JAR を取得して仮想FSへ明示配置（/app はカレント）
-      const url = 'RectFunctionDemo.jar';
-      log('fetch', url, '…');
-      const resp = await fetch(url, {cache:'no-cache'});
-      if(!resp.ok) throw new Error('JAR not found: HTTP '+resp.status);
-      const blob = await resp.blob();
-      const vfsPath = '/app/RectFunctionDemo.jar';
-      log('addFile ->', vfsPath, '('+Math.round(blob.size/1024)+' KB)');
-      await cheerpjAddFile(vfsPath, blob);
+    // 3) クラスパスに JAR を追加して、Main クラスを直接起動
+    log('addClasspath RectFunctionDemo.jar …');
+    await cheerpjAddClasspath('RectFunctionDemo.jar');   // ★ここがキモ
+    log('runMain RectFunctionDemo …');
+    await cheerpjRunMain('RectFunctionDemo', []);        // ★Mainを直叩き
+    log('runMain OK');
 
-      // 4) まずは VFS のパスで起動
-      log('runJar', vfsPath, '…');
-      await cheerpjRunJar(vfsPath);
-      log('runJar OK');
-
-    } catch (e1) {
-      log('runJar error:', e1 && e1.message ? e1.message : e1);
-      // 5) 失敗時フォールバック：相対URLのまま試す
-      try {
-        log('fallback: runJar("RectFunctionDemo.jar") …');
-        await cheerpjRunJar('RectFunctionDemo.jar');
-        log('fallback runJar OK');
-      } catch(e2){
-        log('fallback error:', e2 && e2.message ? e2.message : e2);
-        alert('起動に失敗しました。Console のログを教えてください。');
-      }
-    }
-  })();
-  </script>
+  } catch (e) {
+    console.error(e);
+    log('ERROR:', e && e.message ? e.message : String(e));
+    alert('起動に失敗しました。ページをCtrl+F5で再読み込み、またはシークレットウィンドウでお試しください。');
+  }
+})();
+</script>
 </body>
 </html>
