@@ -16,21 +16,31 @@
 <body>
   <div id="wrap"><div id="mount"></div></div>
   <div class="tip">JAR名は <code>RectFunctionDemo.jar</code> を想定しています。同じ階層に <code>ひも.png</code> も置いてください。</div>
-  <script>
-    (async () => {
-      try {
-        await cheerpjInit(); // ランタイム初期化
-        cheerpjCreateDisplay(1100, 700, document.getElementById('mount')); // 表示領域
-        // サイトのルート（/）は CheerpJ 内では /app/ として見える
-        await cheerpjRunJar("RectFunctionDemo.jar");// JAR 実行
-      } catch (e) {
-        console.error(e);
-        const m = document.createElement('div');
-        m.textContent = "起動に失敗しました。RectFunctionDemo.jar が同じ階層にあるか確認してください。";
-        m.style.cssText = "position:fixed;top:10px;left:10px;background:#fff3cd;border:1px solid #ffeeba;padding:10px;border-radius:8px;color:#856404;";
-        document.body.appendChild(m);
-      }
-    })();
-  </script>
+<script>
+(async () => {
+  try {
+    await cheerpjInit();
+    cheerpjCreateDisplay(1100, 700, document.getElementById('mount'));
+
+    // ★ 追加：JAR に到達できているか事前チェック
+    const head = await fetch("RectFunctionDemo.jar", { method: "HEAD" });
+    if (!head.ok) {
+      document.body.insertAdjacentHTML("beforeend",
+        `<div style="position:fixed;top:10px;left:10px;background:#fff3cd;border:1px solid #ffeeba;padding:10px;border-radius:8px;color:#856404;">
+           JAR が見つかりません（HTTP ${head.status}）。index.html と同じ階層に RectFunctionDemo.jar を置いてください。
+         </div>`);
+      return;
+    }
+
+    await cheerpjRunJar("RectFunctionDemo.jar");   // ← 相対パスのままでOK
+  } catch (e) {
+    console.error(e);
+    const m = document.createElement('div');
+    m.textContent = "起動に失敗しました。コンソール（F12→Console）にエラーが出ていないか確認してください。";
+    m.style.cssText = "position:fixed;top:10px;left:10px;background:#fff3cd;border:1px solid #ffeeba;padding:10px;border-radius:8px;color:#856404;";
+    document.body.appendChild(m);
+  }
+})();
+</script>
 </body>
 </html>
