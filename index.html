@@ -2,45 +2,40 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <title>長方形の面積 可視化（ブラウザ版 / CheerpJ）</title>
+  <title>HelloSwing デプロイテスト（CheerpJ）</title>
+  <!-- CheerpJ ランタイム -->
   <script src="https://cjrtnc.leaningtech.com/4.2/loader.js"></script>
   <style>
-    html,body{height:100%;margin:0;background:#f5f5f5}
-    #wrap{height:100%;display:grid;place-items:center}
-    #mount{width:1100px;height:700px;max-width:98vw;max-height:96vh}
-    .note{position:fixed;left:12px;bottom:8px;color:#666;font:14px/1.6 system-ui}
-    .log{position:fixed;left:12px;top:12px;background:#fff3cd;border:1px solid #ffe08a;
-         padding:10px;border-radius:8px;color:#7a5c00;white-space:pre-wrap;max-width:60ch}
+    html,body { height:100%; margin:0; background:#f5f5f5; }
+    #wrap { height:100%; display:grid; place-items:center; }
+    #mount { width:400px; height:200px; max-width:98vw; max-height:96vh; }
+    .log { position:fixed; left:12px; top:12px; background:#fff3cd;
+           border:1px solid #ffe08a; padding:10px; border-radius:8px;
+           color:#7a5c00; white-space:pre-wrap; max-width:60ch; font:13px/1.5 system-ui; }
   </style>
 </head>
 <body>
   <div id="wrap"><div id="mount"></div></div>
-  <div class="note">JAR名は <code>RectFunctionDemo.jar</code>、同階層に <code>ひも.png</code>。</div>
-<script>
-(async () => {
-  const logBox = document.body.appendChild(Object.assign(document.createElement('pre'),{style:
-    "position:fixed;left:12px;top:12px;background:#fff3cd;border:1px solid #ffe08a;padding:10px;border-radius:8px;color:#7a5c00;white-space:pre-wrap;max-width:60ch"}));
-  const log = (...a)=>{ logBox.textContent += a.join(' ') + '\n'; console.log('[cheerpj]', ...a); };
+  <pre class="log" id="log"></pre>
 
-  try {
-    log('CheerpJ init…');
-    await cheerpjInit();                                 // 1) ランタイム初期化
-    cheerpjCreateDisplay(1100,700,document.getElementById('mount')); // 2) 表示領域
-    await new Promise(r => setTimeout(r, 50));           // 小さな待ち（拡張機能との競合回避）
+  <script>
+    (async () => {
+      const log = (...a)=>{ const el=document.getElementById('log'); el.textContent += a.join(' ') + '\n'; console.log('[cheerpj]', ...a); };
 
-    // 3) クラスパスに JAR を追加して、Main クラスを直接起動
-    log('addClasspath RectFunctionDemo.jar …');
-    await cheerpjAddClasspath('RectFunctionDemo.jar');   // ★ここがキモ
-    log('runMain RectFunctionDemo …');
-    await cheerpjRunMain('RectFunctionDemo', []);        // ★Mainを直叩き
-    log('runMain OK');
-
-  } catch (e) {
-    console.error(e);
-    log('ERROR:', e && e.message ? e.message : String(e));
-    alert('起動に失敗しました。ページをCtrl+F5で再読み込み、またはシークレットウィンドウでお試しください。');
-  }
-})();
-</script>
+      try {
+        log('CheerpJ init…');
+        await cheerpjInit();                                       // ランタイム初期化
+        cheerpjCreateDisplay(400, 200, document.getElementById('mount')); // 表示領域
+        log('addClasspath HelloSwing.jar …');
+        await cheerpjAddClasspath('HelloSwing.jar');               // JAR をクラスパスへ
+        log('runMain HelloSwing …');
+        await cheerpjRunMain('HelloSwing', []);                    // Main を直接実行
+        log('runMain OK');
+      } catch (e) {
+        log('ERROR:', e && e.message ? e.message : String(e));
+        alert('起動に失敗しました。Ctrl+F5 で再読み込み、またはシークレットウィンドウでお試しください。');
+      }
+    })();
+  </script>
 </body>
 </html>
