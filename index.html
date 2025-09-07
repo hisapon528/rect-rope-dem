@@ -5,15 +5,28 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>長方形の面積 可視化（ロープ枠/ブラウザ版）</title>
 <style>
-  :root{ --gap:24px; --ui:14px; }
-  html,body{margin:0;height:100%;background:#fafafa;font:var(--ui)/1.45 system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Sans","Noto Sans JP",sans-serif;color:#333}
-  header{display:flex;align-items:center;gap:48px;padding:10px 16px;border-bottom:1px solid #e6e6e6;background:#fff;position:sticky;top:0;z-index:2}
+  :root{
+    --gap: 24px;
+    --ui: 14px;
+  }
+  html,body{margin:0;height:100%;background:#fafafa;font:var(--ui)/1.4 system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif;color:#333}
+  header{
+    display:flex;align-items:center;gap:48px; /* ← 3cm 相当の広めの隙間 */
+    padding:10px 16px;border-bottom:1px solid #e6e6e6;background:#fff;position:sticky;top:0;z-index:2
+  }
   header .grp{display:flex;align-items:center;gap:8px}
   input[type="number"]{width:84px;padding:6px 8px;border:1px solid #cfcfcf;border-radius:8px}
   input[type="range"]{width:160px}
-  .btn{appearance:none;border:1px solid #cfcfcf;border-radius:8px;background:#fff;padding:6px 10px;cursor:pointer}
-  main{height:calc(100% - 54px);display:grid;grid-template-columns:1fr 1fr;gap:var(--gap);padding:var(--gap);box-sizing:border-box}
-  canvas{width:100%;height:100%;background:#fff;border:1px solid #eee;border-radius:12px;box-shadow:0 1px 0 rgba(0,0,0,.03) inset}
+  button, .btn{
+    appearance:none;border:1px solid #cfcfcf;border-radius:8px;background:#fff;padding:6px 10px;cursor:pointer
+  }
+  main{
+    height:calc(100% - 54px);
+    display:grid;grid-template-columns:1fr 1fr;gap:var(--gap);
+    padding:var(--gap); box-sizing:border-box;
+  }
+  canvas{ width:100%; height:100%; background:#fff; border:1px solid #eee; border-radius:12px; box-shadow:0 1px 0 rgba(0,0,0,.03) inset }
+  .tip{position:fixed;left:16px;top:64px;background:#fff3cd;border:1px solid #ffe08a;color:#7a5c00;padding:8px 10px;border-radius:8px}
 </style>
 </head>
 <body>
@@ -22,11 +35,13 @@
       <label for="aIn">a:</label>
       <input id="aIn" type="number" step="0.1" min="0.1" value="8">
     </div>
+
     <div class="grp">
       <label for="xRange">x:</label>
       <input id="xRange" type="range" min="0" max="1000" value="500">
       <input id="xIn" type="number" step="0.1" min="0" value="4">
     </div>
+
     <button id="traceBtn" class="btn">軌跡を表示</button>
   </header>
 
@@ -36,249 +51,326 @@
   </main>
 
 <script>
-/* ========== 状態 ========== */
-const state = { a:8, x:4, showTrace:false, trace:[] };
+/* --------------------- 共通状態 --------------------- */
+const state = {
+  a: 8,
+  x: 4,
+  showTrace: false,
+  trace: []
+};
+const aIn     = document.querySelector('#aIn');
+const xRange  = document.querySelector('#xRange');
+const xIn     = document.querySelector('#xIn');
+const traceBtn= document.querySelector('#traceBtn');
+const cvsGeom = document.querySelector('#geom');
+const cvsGraph= document.querySelector('#graph');
 const DPR = Math.max(1, window.devicePixelRatio||1);
 
-/* ========== 要素 ========== */
-const aIn=document.getElementById('aIn');
-const xRange=document.getElementById('xRange');
-const xIn=document.getElementById('xIn');
-const traceBtn=document.getElementById('traceBtn');
-const cvsGeom=document.getElementById('geom');
-const cvsGraph=document.getElementById('graph');
+/* --------------------- UI 同期 --------------------- */
+function syncFromInputs(){
+  const a = Math.max(0.1, parseFloat(aIn.value)||8);
+  state.a = a;
 
-/* ========== 共通ユーティリティ ========== */
+  const x = Math.min(a, Math.max(0, parseFloat(xIn.value)||0));
+  state.x = x;
+
+  // スライダーは 0..1000 を 0..a にマップ
+  xRange.value = Math.round((x/a) * 1000);
+
+  // 軌跡
+  if (state.showTrace) pushTrace();
+  drawAll();
+}
+function pushTrace(){
+  const y = state.x*(state.a - state.x);
+  const last = state.trace[state.trace.length-1];
+  if (!last || Math.hypot(last[0]-state.x, last[1]-y) > 1e-6){
+    state.trace.push([state.x, y]);
+    if (state.trace.length > 20000) state.trace.shift();
+  }
+}
+
+aIn.addEventListener('input', ()=>{
+  // a が変わったら x の上限も合わせる
+  const a = Math.max(0.1, parseFloat(aIn.value)||8);
+  xIn.max = a;
+  const ratio = state.a>0 ? state.x/state.a : 0;
+  state.a = a;
+  state.x = Math.min(a, Math.max(0, ratio*a));
+  xIn.value = state.x.toFixed(3);
+  xRange.value = Math.round((state.x/state.a)*1000);
+  if (state.showTrace) state.trace = []; // 形が変わるのでリセット
+  drawAll();
+});
+xRange.addEventListener('input', ()=>{
+  state.x = (parseInt(xRange.value)/1000) * state.a;
+  xIn.value = state.x.toFixed(3);
+  if (state.showTrace) pushTrace();
+  drawAll();
+});
+xIn.addEventListener('input', syncFromInputs);
+
+traceBtn.addEventListener('click', ()=>{
+  state.showTrace = !state.showTrace;
+  traceBtn.textContent = state.showTrace ? '軌跡を非表示' : '軌跡を表示';
+  state.trace = [];
+  if (state.showTrace) pushTrace();
+  drawAll();
+});
+
+/* --------------------- キャンバス基本 --------------------- */
 function fitCanvas(cvs){
-  const r=cvs.getBoundingClientRect();
-  const w=Math.max(1,Math.floor(r.width*DPR));
-  const h=Math.max(1,Math.floor(r.height*DPR));
-  if(cvs.width!==w||cvs.height!==h){ cvs.width=w; cvs.height=h; }
-  const ctx=cvs.getContext('2d');
-  ctx.setTransform(DPR,0,0,DPR,0,0);
-  ctx.font='14px system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif';
-  ctx.textBaseline='alphabetic';
+  const rect = cvs.getBoundingClientRect();
+  const w = Math.max(1, Math.floor(rect.width*DPR));
+  const h = Math.max(1, Math.floor(rect.height*DPR));
+  if (cvs.width !== w || cvs.height !== h){
+    cvs.width = w; cvs.height = h;
+  }
+  const ctx = cvs.getContext('2d');
+  ctx.setTransform(DPR,0,0,DPR,0,0); // CSS ピクセル座標へ
   return ctx;
 }
-function roundedRectPath(ctx,x,y,w,h,r){
-  r=Math.max(0,Math.min(r,Math.min(w,h)/2));
-  ctx.moveTo(x+r,y);
-  ctx.arcTo(x+w,y,  x+w,y+h,r);
-  ctx.arcTo(x+w,y+h,x,  y+h,r);
-  ctx.arcTo(x,  y+h,x,  y,  r);
-  ctx.arcTo(x,  y,  x+w,y,  r);
+
+/* --------------------- ロープタイル --------------------- */
+/** 薄茶ベース＋黒い斜線のシームレス・タイルを作る */
+function makeRopeTile(thickness){
+  const h = Math.max(8, Math.round(thickness));
+  const w = Math.max(48, Math.round(h*4));  // 横長にして位相の継ぎ目が目立たないように
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const g = c.getContext('2d');
+
+  // ベース（薄茶）
+  g.fillStyle = '#d8c090';
+  g.fillRect(0,0,w,h);
+
+  // 円筒陰影（上下をやや暗く）
+  const grd = g.createLinearGradient(0,0,0,h);
+  grd.addColorStop(0.00, 'rgba(0,0,0,0.20)');
+  grd.addColorStop(0.50, 'rgba(0,0,0,0.00)');
+  grd.addColorStop(1.00, 'rgba(0,0,0,0.25)');
+  g.fillStyle = grd;
+  g.fillRect(0,0,w,h);
+
+  // 黒の斜線（///）を敷き詰め
+  g.save();
+  g.translate(w/2, h/2);
+  g.rotate(-Math.PI/4);
+  g.translate(-w/2, -h/2);
+  const stripeW = Math.max(2, Math.round(h/5)); // 太さ
+  g.fillStyle = 'rgba(0,0,0,0.85)';
+  for (let x=-w; x<w*2; x+=stripeW*2){
+    g.fillRect(x, -w, stripeW, w*2);
+  }
+  g.restore();
+
+  // 微小ノイズ（繊維感）
+  const imgData = g.getImageData(0,0,w,h);
+  const data = imgData.data;
+  for (let i=0;i<data.length;i+=4){
+    const n = (Math.random()-0.5)*18;
+    data[i]   = Math.max(0, Math.min(255, data[i]  + n));
+    data[i+1] = Math.max(0, Math.min(255, data[i+1]+ n));
+    data[i+2] = Math.max(0, Math.min(255, data[i+2]+ n));
+  }
+  g.putImageData(imgData,0,0);
+
+  return { image: c, w, h };
+}
+
+/* --------------------- ロープ描画（風車対策：リングで clip） --------------------- */
+function drawRoundRectPath(ctx, x,y,w,h,r){
+  r = Math.max(0, Math.min(r, Math.min(w,h)/2));
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y,   x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x,   y+h, r);
+  ctx.arcTo(x,   y+h, x,   y,   r);
+  ctx.arcTo(x,   y,   x+w, y,   r);
   ctx.closePath();
 }
 
-/* ========== ロープ・タイル（Java版に寄せた 2層斜線） ========== */
-function makeRopeTile(thickness){
-  const h=Math.max(8,Math.round(thickness));
-  const w=Math.max(64, h*4);              // 横長タイルで継ぎ目を目立たせない
-  const c=document.createElement('canvas');
-  c.width=w; c.height=h;
-  const g=c.getContext('2d');
+// エッジ（直線）1 本：パターンを位相継承で貼る
+function drawRopeEdge(ctx, tile, x1,y1, x2,y2, phase){
+  const dx=x2-x1, dy=y2-y1;
+  const len = Math.hypot(dx,dy); if (len<0.5) return phase;
+  const ang = Math.atan2(dy,dx);
 
-  // 薄茶ベース
-  g.fillStyle='#d7be8a'; // 薄い茶色
-  g.fillRect(0,0,w,h);
-
-  // 円筒陰影（上下やや暗く／中央明）
-  const grd=g.createLinearGradient(0,0,0,h);
-  grd.addColorStop(0.00,'rgba(0,0,0,0.18)');
-  grd.addColorStop(0.50,'rgba(255,255,255,0.10)');
-  grd.addColorStop(1.00,'rgba(0,0,0,0.22)');
-  g.fillStyle=grd; g.fillRect(0,0,w,h);
-
-  // 斜線 1 層目（-45°）…濃いめの黒
-  g.save();
-  g.translate(w/2,h/2); g.rotate(-Math.PI/4); g.translate(-w/2,-h/2);
-  let stripeW=Math.max(2,Math.round(h/5));    // 線の太さ
-  g.fillStyle='rgba(0,0,0,0.85)';
-  for(let x=-w; x<w*2; x+=stripeW*2){
-    g.fillRect(x,-w, stripeW, w*2);
-  }
-  g.restore();
-
-  // 斜線 2 層目（+45°）…少し薄めで重ねる
-  g.save();
-  g.translate(w/2,h/2); g.rotate(+Math.PI/4); g.translate(-w/2,-h/2);
-  g.fillStyle='rgba(0,0,0,0.55)';
-  for(let x=-w; x<w*2; x+=stripeW*2){
-    g.fillRect(x,-w, stripeW, w*2);
-  }
-  g.restore();
-
-  // 微小ノイズで繊維感
-  const img=g.getImageData(0,0,w,h); const d=img.data;
-  for(let i=0;i<d.length;i+=4){
-    const n=(Math.random()-0.5)*14;
-    d[i]=Math.max(0,Math.min(255,d[i]+n));
-    d[i+1]=Math.max(0,Math.min(255,d[i+1]+n));
-    d[i+2]=Math.max(0,Math.min(255,d[i+2]+n));
-  }
-  g.putImageData(img,0,0);
-
-  return {image:c,w,h};
-}
-
-/* ========== ロープ描画：位相継承＋リング clip（角の“風車”解消） ========== */
-function drawRopeEdge(ctx,tile,x1,y1,x2,y2,phase){
-  const dx=x2-x1, dy=y2-y1, len=Math.hypot(dx,dy);
-  if(len<0.5) return phase;
-  const ang=Math.atan2(dy,dx);
   ctx.save();
-  ctx.translate(x1,y1); ctx.rotate(ang);
-  const pat=ctx.createPattern(tile.image,'repeat');
-  if(pat && pat.setTransform){
+  ctx.translate(x1,y1);
+  ctx.rotate(ang);
+
+  const pat = ctx.createPattern(tile.image,'repeat');
+  // 位相(phase)分だけ左へオフセットして連続させる
+  if (pat.setTransform){
     pat.setTransform(new DOMMatrix().translate(-phase, -tile.h/2));
-  }else{
-    ctx.translate(-phase,0);
+  } else {
+    // setTransform 未対応ブラウザの簡易フォールバック
+    ctx.translate(-phase, 0);
   }
-  ctx.fillStyle=pat;
-  ctx.fillRect(0,-tile.h/2,len,tile.h);
+  ctx.fillStyle = pat;
+  ctx.fillRect(0, -tile.h/2, len, tile.h);
   ctx.restore();
-  return (phase+len)%tile.w;
+
+  return (phase + len) % tile.w;
 }
-function drawRopeArc(ctx,tile,cx,cy,r,a0,a1,phase){
-  const L=r*Math.abs(a1-a0), seg=6, steps=Math.max(3,Math.ceil(L/seg));
-  let px=cx+r*Math.cos(a0), py=cy+r*Math.sin(a0);
-  for(let i=1;i<=steps;i++){
-    const t=i/steps, a=a0+(a1-a0)*t, x=cx+r*Math.cos(a), y=cy+r*Math.sin(a);
-    phase=drawRopeEdge(ctx,tile,px,py,x,y,phase); px=x; py=y;
+
+// 弧：短い直線に分割して連続貼り
+function drawRopeArc(ctx, tile, cx,cy,r, a0,a1, phase){
+  const arcLen = r * Math.abs(a1-a0);
+  const seg = 6; // px 目安
+  const steps = Math.max(3, Math.ceil(arcLen/seg));
+  let px = cx + r*Math.cos(a0), py = cy + r*Math.sin(a0);
+  for (let i=1;i<=steps;i++){
+    const t = i/steps;
+    const a = a0 + (a1-a0)*t;
+    const x = cx + r*Math.cos(a);
+    const y = cy + r*Math.sin(a);
+    phase = drawRopeEdge(ctx, tile, px,py, x,y, phase);
+    px=x; py=y;
   }
   return phase;
 }
-function drawRopeRect(ctx,x,y,w,h,th){
-  const tile=makeRopeTile(th);
-  const r=Math.min(Math.min(w,h)/2-1, th*3.5);
 
-  // 1) リングでクリップ（外周−内周）
+// 角丸ロープ矩形を描く（薄茶ベース＋黒斜線／輪郭は黒）
+function drawRopeRect(ctx, x,y,w,h, thickness){
+  const tile = makeRopeTile(thickness);
+  const r = Math.min(Math.min(w,h)/2 - 1, thickness*3.5);
+
+  // 1) ロープ帯（外周−内周）でクリップ。はみ出しが見えない
   ctx.save();
   ctx.beginPath();
-  roundedRectPath(ctx, x-th/2, y-th/2, w+th, h+th, r+th/2);
-  roundedRectPath(ctx, x+th/2, y+th/2, w-th, h-th, Math.max(0,r-th/2));
+  drawRoundRectPath(ctx, x - thickness/2, y - thickness/2, w + thickness, h + thickness, r + thickness/2);
+  drawRoundRectPath(ctx, x + thickness/2, y + thickness/2, w - thickness, h - thickness, Math.max(0, r - thickness/2));
   ctx.clip('evenodd');
 
-  // 2) 位相継承で一筆書き（上下左右＋四隅の弧）
-  let phase=0;
-  if(r>0.1){
-    phase=drawRopeEdge(ctx,tile, x+r,   y,     x+w-r, y,     phase);
-    phase=drawRopeArc (ctx,tile, x+w-r, y+r,   r, -Math.PI/2, 0,           phase);
-    phase=drawRopeEdge(ctx,tile, x+w,   y+r,   x+w,   y+h-r,   phase);
-    phase=drawRopeArc (ctx,tile, x+w-r, y+h-r, r, 0,           Math.PI/2,  phase);
-    phase=drawRopeEdge(ctx,tile, x+w-r, y+h,   x+r,   y+h,     phase);
-    phase=drawRopeArc (ctx,tile, x+r,   y+h-r, r, Math.PI/2,   Math.PI,    phase);
-    phase=drawRopeEdge(ctx,tile, x,     y+h-r, x,     y+r,     phase);
-    phase=drawRopeArc (ctx,tile, x+r,   y+r,   r, Math.PI,     3*Math.PI/2,phase);
+  // 2) パターンを位相継承で一筆書き
+  let phase = 0;
+  if (r>0.1){
+    phase = drawRopeEdge(ctx, tile, x+r, y,       x+w-r, y,       phase);
+    phase = drawRopeArc (ctx, tile, x+w-r, y+r,   r, -Math.PI/2, 0,           phase);
+    phase = drawRopeEdge(ctx, tile, x+w,   y+r,   x+w,   y+h-r,   phase);
+    phase = drawRopeArc (ctx, tile, x+w-r, y+h-r, r, 0,           Math.PI/2,  phase);
+    phase = drawRopeEdge(ctx, tile, x+w-r, y+h,   x+r,   y+h,     phase);
+    phase = drawRopeArc (ctx, tile, x+r,   y+h-r, r, Math.PI/2,   Math.PI,    phase);
+    phase = drawRopeEdge(ctx, tile, x,     y+h-r, x,     y+r,     phase);
+    phase = drawRopeArc (ctx, tile, x+r,   y+r,   r, Math.PI,     3*Math.PI/2,phase);
   }else{
-    phase=drawRopeEdge(ctx,tile, x,   y,   x+w, y,   phase);
-    phase=drawRopeEdge(ctx,tile, x+w, y,   x+w, y+h, phase);
-    phase=drawRopeEdge(ctx,tile, x+w, y+h, x,   y+h, phase);
-    phase=drawRopeEdge(ctx,tile, x,   y+h, x,   y,   phase);
+    phase = drawRopeEdge(ctx, tile, x,   y,   x+w, y,   phase);
+    phase = drawRopeEdge(ctx, tile, x+w, y,   x+w, y+h, phase);
+    phase = drawRopeEdge(ctx, tile, x+w, y+h, x,   y+h, phase);
+    phase = drawRopeEdge(ctx, tile, x,   y+h, x,   y,   phase);
   }
   ctx.restore();
 
-  // 3) 黒い輪郭（外周・内周）
+  // 3) 外周・内周の黒輪郭
   ctx.save();
-  ctx.strokeStyle='#000';
-  ctx.lineWidth=Math.max(1.2, th*0.08);
-  ctx.beginPath(); roundedRectPath(ctx, x-th/2, y-th/2, w+th, h+th, r+th/2); ctx.stroke();
-  ctx.beginPath(); roundedRectPath(ctx, x+th/2, y+th/2, w-th, h-th, Math.max(0,r-th/2)); ctx.stroke();
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth   = Math.max(1.2, thickness*0.08);
+
+  ctx.beginPath();
+  drawRoundRectPath(ctx, x - thickness/2, y - thickness/2, w + thickness, h + thickness, r + thickness/2);
+  ctx.stroke();
+
+  ctx.beginPath();
+  drawRoundRectPath(ctx, x + thickness/2, y + thickness/2, w - thickness, h - thickness, Math.max(0, r - thickness/2));
+  ctx.stroke();
   ctx.restore();
 }
 
-/* ========== 幾何パネル ========== */
+/* --------------------- 幾何パネル --------------------- */
 function drawGeom(){
-  const ctx=fitCanvas(cvsGeom);
-  const W=cvsGeom.clientWidth, H=cvsGeom.clientHeight;
+  const ctx = fitCanvas(cvsGeom);
+  const W = cvsGeom.clientWidth, H = cvsGeom.clientHeight;
   ctx.clearRect(0,0,W,H);
 
-  const margin=40;
-  const aw=Math.max(1,W-margin*2), ah=Math.max(1,H-margin*2);
-  const unit=Math.min(aw/state.a, ah/state.a);
-  const h=state.x*unit, w=(state.a-state.x)*unit;
-  const ox=margin+(aw-w)/2, oy=H-margin;
+  // 余白とスケール
+  const margin = 40;
+  const aw = Math.max(1, W - margin*2);
+  const ah = Math.max(1, H - margin*2);
 
-  const th=Math.max(12, Math.min(48, Math.min(w,h)*0.10));
-  drawRopeRect(ctx, ox, oy-h, w, h, th);
+  const unit = Math.min(aw/state.a, ah/state.a); // a を最大正方に収める
+  const h = state.x * unit;               // px 高さ
+  const w = (state.a - state.x) * unit;   // px 幅
+  const ox = margin + (aw - w)/2;
+  const oy = H - margin;
 
-  // 寸法線・メモ
+  const thickness = Math.max(12, Math.min(48, Math.min(w,h)*0.10));
+
+  // ロープ
+  drawRopeRect(ctx, ox, oy - h, w, h, thickness);
+
+  // 寸法線
   ctx.save();
-  ctx.strokeStyle='#666'; ctx.fillStyle='#333'; ctx.lineWidth=1.2;
+  ctx.strokeStyle = '#666';
+  ctx.fillStyle   = '#333';
+  ctx.lineWidth   = 1.2;
 
-  // 縦
-  const tx=Math.round(ox+w+24);
+  // 縦寸法
+  const tx = Math.round(ox + w + 24);
   ctx.beginPath();
   ctx.moveTo(tx, oy-h); ctx.lineTo(tx, oy);
   ctx.moveTo(tx-6, oy-h); ctx.lineTo(tx+6, oy-h);
   ctx.moveTo(tx-6, oy);   ctx.lineTo(tx+6, oy);
   ctx.stroke();
-  ctx.fillText(`縦の長さ = ${state.x.toFixed(3)}`, tx+8, oy-h/2);
+  ctx.fillText(`縦の長さ = ${state.x.toFixed(3)}`, tx+8, oy - h/2);
 
-  // 横
-  const ty=Math.round(oy+24);
+  // 横寸法
+  const ty = Math.round(oy + 24);
   ctx.beginPath();
   ctx.moveTo(ox, ty); ctx.lineTo(ox+w, ty);
   ctx.moveTo(ox, ty-6); ctx.lineTo(ox, ty+6);
   ctx.moveTo(ox+w, ty-6); ctx.lineTo(ox+w, ty+6);
   ctx.stroke();
-  const wLabel=`横の長さ = ${(state.a-state.x).toFixed(3)}`;
-  ctx.fillText(wLabel, ox+w/2-ctx.measureText(wLabel).width/2, ty+12);
+  const wLabel = `横の長さ = ${(state.a - state.x).toFixed(3)}`;
+  ctx.fillText(wLabel, ox + w/2 - ctx.measureText(wLabel).width/2, ty + 12);
 
-  // 情報ボックス（左上）
-  const y=state.x*(state.a-state.x);
-  const lines=[
+  // 情報ボックス
+  const y = state.x*(state.a - state.x);
+  const lines = [
     `ロープの長さ：${(2*state.a).toFixed(3)}`,
     `縦の長さ：x = ${state.x.toFixed(3)}`,
-    `横の長さ：a − x = ${(state.a-state.x).toFixed(3)}`,
+    `横の長さ：a − x = ${(state.a - state.x).toFixed(3)}`,
     `面積 = ${y.toFixed(3)}`
   ];
-  const maxw=Math.max(...lines.map(s=>ctx.measureText(s).width));
-  const bx=18, by=22, pad=8, lh=18;
-  ctx.fillStyle='#fff8d2';
-  ctx.strokeStyle='#b28a20';
-  ctx.lineWidth=1;
+  const maxw = Math.max(...lines.map(s=>ctx.measureText(s).width));
+  const bx = 18, by = 22, pad=8, lh=18;
+  ctx.fillStyle = '#fff8d2';
+  ctx.strokeStyle = '#b28a20';
+  ctx.lineWidth = 1;
   ctx.beginPath();
-  roundedRectPath(ctx, bx-pad, by-pad, maxw+pad*2, lh*lines.length+pad*2, 10);
+  ctx.roundRect(bx- pad, by- pad, maxw + pad*2, lh*lines.length + pad*2, 10);
   ctx.fill(); ctx.stroke();
-  ctx.fillStyle='#333';
-  lines.forEach((s,i)=>ctx.fillText(s, bx, by+lh*i+2));
+  ctx.fillStyle = '#333';
+  lines.forEach((s,i)=> ctx.fillText(s, bx, by + lh*i + 2));
   ctx.restore();
 }
 
-/* ========== グラフパネル ========== */
+/* --------------------- グラフパネル --------------------- */
 function drawGraph(){
-  const ctx=fitCanvas(cvsGraph);
-  const W=cvsGraph.clientWidth, H=cvsGraph.clientHeight;
+  const ctx = fitCanvas(cvsGraph);
+  const W = cvsGraph.clientWidth, H = cvsGraph.clientHeight;
   ctx.clearRect(0,0,W,H);
 
   const marginL=60, marginR=16, marginT=24, marginB=40;
-  const plotW=W-marginL-marginR, plotH=H-marginT-marginB;
+  const plotW = W - marginL - marginR;
+  const plotH = H - marginT - marginB;
 
-  const xMin=0, xMax=Math.max(1e-6,state.a);
+  const xMin=0, xMax=Math.max(1e-6, state.a);
   const yMin=0, yMax=Math.max(1e-6, state.a*state.a/4);
 
-  const X=v=>marginL+(v-xMin)/(xMax-xMin)*plotW;
-  const Y=v=>marginT+(1-(v-yMin)/(yMax-yMin))*plotH;
-
-  // ★ 関数パネルの「ロープの長さ」を 2倍の大きさで表示
-  ctx.save();
-  ctx.font='28px system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif'; // 2倍
-  ctx.fillStyle='#333';
-  const ropeText=`ロープの長さ：${(2*state.a).toFixed(3)}`;
-  ctx.fillText(ropeText, marginL, 22); // キャンバス上部に大きく
-  ctx.restore();
+  const X = vx => marginL + (vx-xMin)/(xMax-xMin)*plotW;
+  const Y = vy => marginT + (1-(vy-yMin)/(yMax-yMin))*plotH;
 
   // 背景
   ctx.fillStyle='#f7f7f7'; ctx.fillRect(marginL, marginT, plotW, plotH);
   // グリッド
   ctx.strokeStyle='#e5e5e5'; ctx.lineWidth=1;
   for(let i=0;i<=10;i++){
-    const xx=X(xMin+(xMax-xMin)*i/10);
+    const xx=X(xMin + (xMax-xMin)*i/10);
     ctx.beginPath(); ctx.moveTo(xx, marginT); ctx.lineTo(xx, marginT+plotH); ctx.stroke();
   }
   for(let j=0;j<=10;j++){
-    const yy=Y(yMin+(yMax-yMin)*j/10);
+    const yy=Y(yMin + (yMax-yMin)*j/10);
     ctx.beginPath(); ctx.moveTo(marginL, yy); ctx.lineTo(marginL+plotW, yy); ctx.stroke();
   }
   // 軸
@@ -287,74 +379,40 @@ function drawGraph(){
   ctx.beginPath(); ctx.moveTo(marginL, marginT);       ctx.lineTo(marginL,        marginT+plotH); ctx.stroke();
 
   // 軌跡
-  if(state.showTrace && state.trace.length>=2){
-    ctx.strokeStyle='#1f77b4'; ctx.lineWidth=2;
+  if (state.showTrace && state.trace.length>=2){
+    ctx.strokeStyle = '#1f77b4'; ctx.lineWidth=2;
     ctx.beginPath();
     ctx.moveTo(X(state.trace[0][0]), Y(state.trace[0][1]));
-    for(let i=1;i<state.trace.length;i++) ctx.lineTo(X(state.trace[i][0]), Y(state.trace[i][1]));
+    for (let i=1;i<state.trace.length;i++) ctx.lineTo(X(state.trace[i][0]), Y(state.trace[i][1]));
     ctx.stroke();
   }
 
   // 現在の点
-  const px=state.x, py=state.x*(state.a-state.x);
+  const px = state.x, py = state.x*(state.a-state.x);
   ctx.fillStyle='#d62728';
   ctx.beginPath(); ctx.arc(X(px), Y(py), 5, 0, Math.PI*2); ctx.fill();
   ctx.strokeStyle='#fff'; ctx.lineWidth=1.2; ctx.stroke();
 
   // ラベル
-  ctx.font='14px system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif';
-  const label=`(${px.toFixed(2)}, ${py.toFixed(2)})`;
-  const tx=X(px)+10, ty=Y(py)-10, tw=ctx.measureText(label).width;
+  const label = `(${px.toFixed(2)}, ${py.toFixed(2)})`;
   ctx.fillStyle='rgba(255,255,255,.92)';
   ctx.strokeStyle='#666';
-  ctx.beginPath();
-  roundedRectPath(ctx, tx-6, ty-16, tw+12, 22, 8);
-  ctx.fill(); ctx.stroke();
+  const tx = X(px)+10, ty = Y(py)-10;
+  const tw = ctx.measureText(label).width;
+  ctx.beginPath(); ctx.roundRect(tx-6, ty-16, tw+12, 22, 8); ctx.fill(); ctx.stroke();
   ctx.fillStyle='#333'; ctx.fillText(label, tx, ty);
 }
 
-/* ========== 軌跡・UI 同期 ========== */
-function pushTrace(){
-  const y=state.x*(state.a-state.x);
-  const last=state.trace[state.trace.length-1];
-  if(!last || Math.hypot(last[0]-state.x,last[1]-y)>1e-6){
-    state.trace.push([state.x,y]);
-    if(state.trace.length>20000) state.trace.shift();
-  }
-}
-aIn.addEventListener('input', ()=>{
-  const a=Math.max(0.1, parseFloat(aIn.value)||8);
-  const ratio=state.a>0? state.x/state.a : 0;
-  state.a=a;
-  state.x=Math.min(a, Math.max(0, ratio*a));
-  xIn.max=a; xIn.value=state.x.toFixed(3);
-  xRange.value=Math.round((state.x/state.a)*1000);
-  if(state.showTrace) state.trace=[];
-  drawGeom(); drawGraph();
-});
-xRange.addEventListener('input', ()=>{
-  state.x=(parseInt(xRange.value)/1000)*state.a;
-  xIn.value=state.x.toFixed(3);
-  if(state.showTrace) pushTrace();
-  drawGeom(); drawGraph();
-});
-xIn.addEventListener('input', ()=>{
-  const xv=Math.max(0, Math.min(state.a, parseFloat(xIn.value)||0));
-  state.x=xv; xRange.value=Math.round((state.x/state.a)*1000);
-  if(state.showTrace) pushTrace();
-  drawGeom(); drawGraph();
-});
-traceBtn.addEventListener('click', ()=>{
-  state.showTrace=!state.showTrace;
-  traceBtn.textContent=state.showTrace?'軌跡を非表示':'軌跡を表示';
-  state.trace=[]; if(state.showTrace) pushTrace();
-  drawGraph();
-});
+/* --------------------- 総合描画 --------------------- */
+function drawAll(){ drawGeom(); drawGraph(); }
 
-/* ========== 初期化 ========== */
+/* --------------------- 初期化 --------------------- */
 (function init(){
-  xIn.max=state.a; aIn.value=state.a; xIn.value=state.x; xRange.value=Math.round((state.x/state.a)*1000);
-  drawGeom(); drawGraph();
+  xIn.max = state.a;
+  aIn.value = state.a;
+  xIn.value = state.x;
+  xRange.value = Math.round((state.x/state.a)*1000);
+  drawAll();
 })();
 </script>
 </body>
