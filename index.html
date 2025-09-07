@@ -18,12 +18,16 @@
   <div class="tip">JAR名は <code>RectFunctionDemo.jar</code> を想定しています。同じ階層に <code>ひも.png</code> も置いてください。</div>
 <script>
 (async () => {
+  const log = (...a) => console.log("[cheerpj]", ...a);
   try {
+    log("init...");
     await cheerpjInit();
     cheerpjCreateDisplay(1100, 700, document.getElementById('mount'));
+    log("init OK");
 
-    // 事前チェック（JARに到達できるか）
+    log("HEAD RectFunctionDemo.jar ...");
     const head = await fetch("RectFunctionDemo.jar", { method: "HEAD" });
+    log("HEAD status =", head.status);
     if (!head.ok) {
       document.body.insertAdjacentHTML("beforeend",
         `<div style="position:fixed;top:10px;left:10px;background:#fff3cd;border:1px solid #ffeeba;padding:10px;border-radius:8px;color:#856404;">
@@ -32,14 +36,21 @@
       return;
     }
 
-    // ★ポイント：JARをクラスパスに追加→Mainクラスを直接実行
-await cheerpjAddClasspath("RectFunctionDemo.jar");
-await cheerpjRunMain("RectFunctionDemo", []);// ← パッケージがあるなら fully-qualified 名に
+    log("addClasspath...");
+    await cheerpjAddClasspath("RectFunctionDemo.jar");
+    log("runMain RectFunctionDemo ...");
+    await cheerpjRunMain("RectFunctionDemo", []); // パッケージがあるなら完全修飾名に
+    log("runMain OK");
   } catch (e) {
     console.error(e);
-    const m = document.createElement('div');
-    m.textContent = "起動に失敗しました。F12→Console のエラー内容を教えてください。";
-    m.style.cssText = "position:fixed;top:10px;left:10px;background:#fff3cd;border:1px solid #ffeeba;padding:10px;border-radius:8px;color:#856404;";
+    const m = document.createElement('pre');
+    m.textContent =
+      "起動に失敗しました。\n---- error ----\n" +
+      (e && e.message ? e.message : String(e)) +
+      "\n--------------\n" +
+      "F12→Console もあわせて確認してください。";
+    m.style.cssText =
+      "position:fixed;top:10px;left:10px;background:#fff3cd;border:1px solid #ffeeba;padding:10px;border-radius:8px;color:#856404;max-width:95vw;white-space:pre-wrap;";
     document.body.appendChild(m);
   }
 })();
