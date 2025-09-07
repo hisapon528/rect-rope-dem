@@ -7,11 +7,15 @@
   <!-- CheerpJ v4 ランタイム -->
   <script src="https://cjrtnc.leaningtech.com/4.2/loader.js"></script>
   <style>
-    html,body { height:100%; margin:0; background:#f5f5f5; }
-    #wrap { height:100%; display:grid; place-items:center; }
-    #mount { width:1100px; height:700px; max-width:98vw; max-height:96vh; }
-    .tip { position:fixed; left:12px; bottom:12px; font:14px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif; color:#444; }
-    code { background:#eee; padding:2px 4px; border-radius:4px; }
+    html,body{height:100%;margin:0;background:#f5f5f5}
+    #wrap{height:100%;display:grid;place-items:center}
+    #mount{width:1100px;height:700px;max-width:98vw;max-height:96vh}
+    #log{position:fixed;top:10px;left:10px;background:#fff3cd;border:1px solid #ffeeba;
+         padding:10px 12px;border-radius:8px;color:#856404;max-width:95vw;white-space:pre-wrap;
+         font:13px/1.5 ui-monospace,Consolas,Monaco,monospace}
+    .tip{position:fixed;left:12px;bottom:12px;font:14px/1.6 system-ui, -apple-system,"Segoe UI",
+         Roboto,"Hiragino Sans","Noto Sans JP",sans-serif;color:#444}
+    code{background:#eee;padding:2px 4px;border-radius:4px}
   </style>
 </head>
 <body>
@@ -19,20 +23,62 @@
   <div class="tip">
     JAR名は <code>RectFunctionDemo.jar</code> を想定しています。同じ階層に <code>ひも.png</code> も置いてください。
   </div>
+  <pre id="log">loading…</pre>
 
-  <script>
-    (async () => {
-      const notice = (msg) => {
-        const el = document.createElement('div');
-        el.textContent = msg;
-        el.style.cssText =
-          "position:fixed;top:10px;left:10px;background:#fff3cd;border:1px solid #ffeeba;padding:10px;border-radius:8px;color:#856404;max-width:95vw;white-space:pre-wrap;";
-        document.body.appendChild(el);
-      };
+<script>
+(async () => {
+  const logEl = document.getElementById('log');
+  const say = (m) => { console.log("[cheerpj]", m); logEl.textContent += "\n" + m; };
 
+  try {
+    logEl.textContent = "CheerpJ init…";
+    await cheerpjInit();
+    say("CheerpJ runtime ready");
+    cheerpjCreateDisplay(1100, 700, document.getElementById('mount'));
+
+    // まず JAR の取り場所を決める（相対パスで探す）
+    const candidates = ["RectFunctionDemo.jar", "./RectFunctionDemo.jar"];
+    let jar = null;
+    for (const p of candidates) {
       try {
-        await cheerpjInit();
-        cheerpjCreateDisplay(1100, 700, document.getElementById('mount'));
+        const r = await fetch(p, { method: "HEAD", cache: "no-store" });
+        say(`HEAD ${p} -> ${r.status}`);
+        if (r.ok) { jar = p; break; }
+      } catch (e) { /* ignore */ }
+    }
+    if (!jar) {
+      say("JAR が見つかりません。index.html と同じ階層に RectFunctionDemo.jar を置いてください。");
+      return;
+    }
+    say(`JAR path = ${jar}`);
 
-        // JARが取れるか軽くチェック（任意）
-        cons
+    // 1) メインクラス名で直接実行（パッケージなし想定）
+    try {
+      say("runMain RectFunctionDemo …");
+      await cheerpjRunMain("RectFunctionDemo", [jar]);
+      say("runMain OK");
+      return;
+    } catch (e1) {
+      say("runMain 失敗: " + (e1 && e1.message ? e1.message : e1));
+    }
+
+    // 2) JAR の MANIFEST（Main-Class）を使って実行
+    try {
+      say("runJar …（MANIFESTの Main-Class を使用）");
+      await cheerpjRunJar(jar);
+      say("runJar OK");
+      return;
+    } catch (e2) {
+      say("runJar 失敗: " + (e2 && e2.message ? e2.message : e2));
+      say("\n対処: JAR に Main-Class が入っていない場合があります。");
+      say("  A) JAR作成時に `jar cfe RectFunctionDemo.jar RectFunctionDemo *.class` で作り直す");
+      say("  B) または `cheerpjRunMain(\"完全修飾名\", [\"RectFunctionDemo.jar\"])` にクラス名を合わせる");
+    }
+
+  } catch (e) {
+    say("致命的エラー: " + (e && e.message ? e.message : e));
+  }
+})();
+</script>
+</body>
+</html>
