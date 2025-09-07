@@ -9,7 +9,8 @@
     #wrap{height:100%;display:grid;place-items:center}
     #mount{width:1100px;height:700px;max-width:98vw;max-height:96vh}
     .note{position:fixed;left:12px;bottom:8px;color:#666;font:14px/1.6 system-ui}
-    code{background:#eee;padding:2px 4px;border-radius:4px}
+    .log{position:fixed;left:12px;top:12px;background:#fff3cd;border:1px solid #ffe08a;
+         padding:10px;border-radius:8px;color:#7a5c00;white-space:pre-wrap;max-width:60ch}
   </style>
 </head>
 <body>
@@ -17,18 +18,41 @@
   <div class="note">JAR名は <code>RectFunctionDemo.jar</code>、同階層に <code>ひも.png</code>。</div>
   <script>
   (async () => {
+    const logBox = document.body.appendChild(Object.assign(document.createElement('pre'),{className:'log'}));
+    const log = (...a)=>{ logBox.textContent += a.join(' ') + '\n'; console.log('[cheerpj]', ...a); };
+
     try {
-      await cheerpjInit();                          // 1) ランタイム初期化
-      cheerpjCreateDisplay(1100,700,document.getElementById('mount')); // 2) 画面
-      const r = await fetch('RectFunctionDemo.jar', {method:'HEAD'});  // 3) 在りかチェック
-      if(!r.ok){ throw new Error('JAR not found: HTTP '+r.status); }
-      await cheerpjRunJar('RectFunctionDemo.jar');  // 4) JAR（MANIFESTの Main-Class）で起動
-    } catch(e){
-      console.error(e);
-      const m = document.createElement('pre');
-      m.textContent = '起動に失敗: '+(e && e.message ? e.message : e);
-      m.style.cssText='position:fixed;top:10px;left:10px;background:#fff3cd;border:1px solid #ffeeba;padding:10px;border-radius:8px;color:#856404;max-width:95vw;white-space:pre-wrap';
-      document.body.appendChild(m);
+      log('CheerpJ init…');
+      await cheerpjInit();                         // 1) ランタイム初期化
+      cheerpjCreateDisplay(1100,700,document.getElementById('mount')); // 2) 表示領域
+      log('runtime ready');
+
+      // 3) JAR を取得して仮想FSへ明示配置（/app はカレント）
+      const url = 'RectFunctionDemo.jar';
+      log('fetch', url, '…');
+      const resp = await fetch(url, {cache:'no-cache'});
+      if(!resp.ok) throw new Error('JAR not found: HTTP '+resp.status);
+      const blob = await resp.blob();
+      const vfsPath = '/app/RectFunctionDemo.jar';
+      log('addFile ->', vfsPath, '('+Math.round(blob.size/1024)+' KB)');
+      await cheerpjAddFile(vfsPath, blob);
+
+      // 4) まずは VFS のパスで起動
+      log('runJar', vfsPath, '…');
+      await cheerpjRunJar(vfsPath);
+      log('runJar OK');
+
+    } catch (e1) {
+      log('runJar error:', e1 && e1.message ? e1.message : e1);
+      // 5) 失敗時フォールバック：相対URLのまま試す
+      try {
+        log('fallback: runJar("RectFunctionDemo.jar") …');
+        await cheerpjRunJar('RectFunctionDemo.jar');
+        log('fallback runJar OK');
+      } catch(e2){
+        log('fallback error:', e2 && e2.message ? e2.message : e2);
+        alert('起動に失敗しました。Console のログを教えてください。');
+      }
     }
   })();
   </script>
