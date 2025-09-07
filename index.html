@@ -25,9 +25,8 @@
     cheerpjCreateDisplay(1100, 700, document.getElementById('mount'));
     log("init OK");
 
-    log("HEAD RectFunctionDemo.jar ...");
+    // JARが届くか軽くチェック（HEAD）
     const head = await fetch("RectFunctionDemo.jar", { method: "HEAD" });
-    log("HEAD status =", head.status);
     if (!head.ok) {
       document.body.insertAdjacentHTML("beforeend",
         `<div style="position:fixed;top:10px;left:10px;background:#fff3cd;border:1px solid #ffeeba;padding:10px;border-radius:8px;color:#856404;">
@@ -36,10 +35,8 @@
       return;
     }
 
-    log("addClasspath...");
-    await cheerpjAddClasspath("RectFunctionDemo.jar");
-    log("runMain RectFunctionDemo ...");
-    await cheerpjRunMain("RectFunctionDemo", []); // パッケージがあるなら完全修飾名に
+    log("runMain RectFunctionDemo with classPath ...");
+    await cheerpjRunMain("RectFunctionDemo", "/app/RectFunctionDemo.jar");
     log("runMain OK");
   } catch (e) {
     console.error(e);
@@ -47,14 +44,14 @@
     m.textContent =
       "起動に失敗しました。\n---- error ----\n" +
       (e && e.message ? e.message : String(e)) +
-      "\n--------------\n" +
-      "F12→Console もあわせて確認してください。";
+      "\n--------------\nF12→Console もあわせて確認してください。";
     m.style.cssText =
       "position:fixed;top:10px;left:10px;background:#fff3cd;border:1px solid #ffeeba;padding:10px;border-radius:8px;color:#856404;max-width:95vw;white-space:pre-wrap;";
     document.body.appendChild(m);
   }
 })();
 </script>
+
 
 </body>
 </html>
