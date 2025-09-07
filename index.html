@@ -10,13 +10,12 @@
     --ui:14px;
     --header-h:56px;
   }
-  /* ★ ページ全体を 2 行グリッド（ヘッダー固定 + 残り全面）にして伸び止め */
   html,body{height:100%; margin:0}
   body{
     display:grid;
     grid-template-rows: var(--header-h) 1fr;
-    height:100dvh;           /* 端末のUI高さ差分も考慮 */
-    overflow:hidden;         /* ページ全体の縦伸び防止 */
+    height:100dvh;
+    overflow:hidden;
     background:#fafafa;
     font:var(--ui)/1.4 system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Sans","Noto Sans JP",sans-serif;
     color:#333;
@@ -31,14 +30,11 @@
   input[type="range"]{width:160px}
   button{appearance:none; border:1px solid #cfcfcf; border-radius:8px; background:#fff; padding:6px 10px; cursor:pointer}
 
-  /* ★ メインは残り全面。min-height:0 で子の 100% 高を許可し、縦オーバーを抑制 */
   main{
     min-height:0;
     display:grid; grid-template-columns:minmax(320px,1fr) minmax(320px,1fr);
     gap:var(--gap); padding:var(--gap); box-sizing:border-box; overflow:hidden;
   }
-
-  /* Canvas をブロック化（行間隙を0に）＋枠 */
   canvas{
     display:block;
     width:100%; height:100%;
@@ -50,11 +46,11 @@
 <body>
   <header>
     <div class="grp">
-      <label for="aIn">a:</label>
+      <label id="labA" for="aIn">𝑎:</label>
       <input id="aIn" type="number" step="0.1" min="0.1" value="8">
     </div>
     <div class="grp">
-      <label for="xRange">x:</label>
+      <label id="labX" for="xRange">𝑥:</label>
       <input id="xRange" type="range" min="0" max="1000" value="500">
       <input id="xIn" type="number" step="0.1" min="0" value="4">
     </div>
@@ -77,7 +73,7 @@ const cvsGeom=document.querySelector('#geom');
 const cvsGraph=document.querySelector('#graph');
 const DPR = Math.max(1, window.devicePixelRatio||1);
 
-/* 幾何パネルだけ文字を2倍 */
+/* 幾何パネルだけ文字を2倍（前回のまま） */
 const GEO_FONT_PX = 28;
 const GEO_LINE_H  = Math.round(GEO_FONT_PX*1.25);
 
@@ -149,10 +145,10 @@ CanvasRenderingContext2D.prototype.roundRect ??= function(x,y,w,h,r){
   this.closePath();
 }
 
-/*================= ロープ用タイル生成（薄茶 + 斜線/輪郭：黒） =================*/
+/*================= ロープ用タイル生成（細かめに/薄茶＋黒縞） =================*/
 function makeRopeTile(thickness){
-  const h = Math.max(8, Math.round(thickness));
-  const w = Math.max(64, Math.round(h*4));
+  const h = Math.max(8, Math.round(thickness));          // 太さ = タイル高さ
+  const w = Math.max(96, Math.round(h*6));               // 一回り細かい繰り返し
   const c = document.createElement('canvas'); c.width=w; c.height=h;
   const g = c.getContext('2d');
 
@@ -161,31 +157,33 @@ function makeRopeTile(thickness){
 
   // 円筒陰影
   const grd = g.createLinearGradient(0,0,0,h);
-  grd.addColorStop(0,'rgba(0,0,0,0.20)');
+  grd.addColorStop(0,'rgba(0,0,0,0.18)');
   grd.addColorStop(0.5,'rgba(0,0,0,0.00)');
-  grd.addColorStop(1,'rgba(0,0,0,0.25)');
+  grd.addColorStop(1,'rgba(0,0,0,0.22)');
   g.fillStyle=grd; g.fillRect(0,0,w,h);
 
-  // 縞（黒）密に：-45°＋+45°
-  const targetPeriod = Math.max(6, Math.round(h*0.55));
-  let N = Math.max(16, Math.floor(w/targetPeriod));
+  // 縞：ターゲット周期を小さめ（=模様が細かく見える）
+  const targetPeriod = Math.max(6, Math.round(h*0.40));   // ← 0.55 → 0.40 に変更
+  let N = Math.max(20, Math.floor(w/targetPeriod));
   if (N%2===1) N++;
   const period = Math.max(4, Math.floor(w/N));
   const stripeW = Math.max(2, Math.floor(period/2));
 
+  // -45°
   g.save();
   g.translate(w/2,h/2); g.rotate(-Math.PI/4); g.translate(-w/2,-h/2);
-  g.globalAlpha = 0.85; g.fillStyle='#000';
+  g.globalAlpha = 0.80; g.fillStyle='#000';
   for(let i=-N;i<2*N;i++){ g.fillRect(i*period, -w, stripeW, 2*w); }
-  g.globalAlpha = 0.65;
+  g.globalAlpha = 0.60;
   for(let i=-N;i<2*N;i++){ g.fillRect(i*period+stripeW, -w, stripeW, 2*w); }
   g.restore();
 
+  // +45°
   g.save();
   g.translate(w/2,h/2); g.rotate(+Math.PI/4); g.translate(-w/2,-h/2);
-  g.globalAlpha = 0.30; g.fillStyle='#000';
+  g.globalAlpha = 0.28; g.fillStyle='#000';
   for(let i=-N;i<2*N;i++){ g.fillRect(i*period, -w, stripeW, 2*w); }
-  g.globalAlpha = 0.22;
+  g.globalAlpha = 0.20;
   for(let i=-N;i<2*N;i++){ g.fillRect(i*period+stripeW, -w, stripeW, 2*w); }
   g.restore();
 
@@ -193,7 +191,7 @@ function makeRopeTile(thickness){
   const img = g.getImageData(0,0,w,h);
   const dt = img.data;
   for(let i=0;i<dt.length;i+=4){
-    const n=(Math.random()-0.5)*14;
+    const n=(Math.random()-0.5)*12;
     dt[i]+=n; dt[i+1]+=n; dt[i+2]+=n;
   }
   g.putImageData(img,0,0);
@@ -219,6 +217,7 @@ function drawRopeEdge(ctx,tile,x1,y1,x2,y2,phase){
   ctx.rotate(ang);
   const pat=ctx.createPattern(tile.image,'repeat');
   if (pat && pat.setTransform){
+    // 垂直方向は常に中心合わせ（太さが変わっても下に“ずれ”ない）
     pat.setTransform(new DOMMatrix().translate(-phase,-tile.h/2));
   }else{
     ctx.translate(-phase,0);
@@ -245,7 +244,7 @@ function drawRopeRect(ctx,x,y,w,h,th){
   r = Math.max(0, r);
 
   ctx.save();
-  // リングでクリップ
+  // リングでクリップ（角の“風車”解消）
   ctx.beginPath();
   drawRoundRectPath(ctx, x-th/2, y-th/2, w+th, h+th, r+th/2);
   drawRoundRectPath(ctx, x+th/2, y+th/2, w-th, h-th, Math.max(0,r-th/2));
@@ -278,7 +277,8 @@ function drawRopeRect(ctx,x,y,w,h,th){
   ctx.restore();
 }
 
-/*================= 幾何パネル（文字2倍） =================*/
+/*================= 幾何パネル（文字2倍のまま） =================*/
+const 𝑎='𝑎', 𝑥='𝑥'; // 数式風イタリック
 function drawGeom(){
   const ctx = fitCanvas(cvsGeom);
   const W = cvsGeom.clientWidth, H = cvsGeom.clientHeight;
@@ -295,7 +295,10 @@ function drawGeom(){
   const ox = margin + (aw-w)/2;
   const oy = H - margin;
 
-  const thickness = Math.max(12, Math.min(48, Math.min(w,h)*0.10));
+  // ★ ロープ太さは画面基準で一定（x を動かしても模様が下にずれない）
+  const baseLen = Math.min(W,H);
+  const thickness = Math.max(12, Math.min(42, Math.round(baseLen*0.020)));
+
   drawRopeRect(ctx, ox, oy-h, w, h, thickness);
 
   // 寸法線
@@ -308,7 +311,7 @@ function drawGeom(){
   ctx.moveTo(tx-8, oy-h); ctx.lineTo(tx+8, oy-h);
   ctx.moveTo(tx-8, oy);   ctx.lineTo(tx+8, oy);
   ctx.stroke();
-  ctx.fillText(`縦の長さ = ${state.x.toFixed(3)}`, tx+10, oy - h/2);
+  ctx.fillText(`縦の長さ = ${𝑥} = ${state.x.toFixed(3)}`, tx+10, oy - h/2);
 
   const ty = Math.round(oy + 30);
   ctx.beginPath();
@@ -316,21 +319,21 @@ function drawGeom(){
   ctx.moveTo(ox, ty-8); ctx.lineTo(ox, ty+8);
   ctx.moveTo(ox+w, ty-8); ctx.lineTo(ox+w, ty+8);
   ctx.stroke();
-  const wLabel = `横の長さ = ${(state.a-state.x).toFixed(3)}`;
+  const wLabel = `横の長さ = ${𝑎} − ${𝑥} = ${(state.a-state.x).toFixed(3)}`;
   ctx.fillText(wLabel, ox + w/2 - ctx.measureText(wLabel).width/2, ty + GEO_FONT_PX*0.9);
   ctx.restore();
 
-  // 情報ボックス（文字2倍・自動収まり）
+  // 情報ボックス（文字2倍）
   ctx.save();
   const yVal = state.x*(state.a-state.x);
   const lines = [
     `ロープの長さ：${(2*state.a).toFixed(3)}`,
-    `縦の長さ：x = ${state.x.toFixed(3)}`,
-    `横の長さ：a − x = ${(state.a-state.x).toFixed(3)}`,
+    `縦の長さ：${𝑥} = ${state.x.toFixed(3)}`,
+    `横の長さ：${𝑎} − ${𝑥} = ${(state.a-state.x).toFixed(3)}`,
     `面積 = ${yVal.toFixed(3)}`
   ];
-  const maxw = Math.max(...lines.map(s=>ctx.measureText(s).width));
   const pad = 12, bx=18, by=18;
+  const maxw = Math.max(...lines.map(s=>ctx.measureText(s).width));
   const boxW = maxw + pad*2;
   const boxH = GEO_LINE_H*lines.length + pad*2;
 
@@ -344,15 +347,32 @@ function drawGeom(){
   ctx.restore();
 }
 
-/*================= 関数パネル（従来サイズ） =================*/
+/*================= “見やすい目盛り”ユーティリティ =================*/
+function niceTicks(min, max, maxCount=8){
+  const span = max-min;
+  if (span<=0 || !isFinite(span)) return {start:min, step:1, count:2};
+  const stepRaw = span / Math.max(1, maxCount);
+  const pow10 = Math.pow(10, Math.floor(Math.log10(stepRaw)));
+  const bases = [1, 2, 2.5, 5, 10];
+  let step = bases[0]*pow10;
+  for (const b of bases){
+    const s = b*pow10;
+    if (span/ s <= maxCount){ step = s; break; }
+  }
+  const start = Math.ceil(min/step)*step;
+  const count = Math.floor((max-start)/step)+1;
+  return {start, step, count:Math.max(2,count)};
+}
+
+/*================= 関数パネル（目盛り・数値を復活） =================*/
 function drawGraph(){
   const ctx = fitCanvas(cvsGraph);
   const W = cvsGraph.clientWidth, H = cvsGraph.clientHeight;
   ctx.clearRect(0,0,W,H);
 
-  ctx.font = '14px system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Sans","Noto Sans JP",sans-serif';
+  ctx.font = '12px system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Sans","Noto Sans JP",sans-serif';
 
-  const marginL=60, marginR=16, marginT=24, marginB=40;
+  const marginL=80, marginR=18, marginT=24, marginB=48; // ← ラベル分広げる
   const plotW=W-marginL-marginR, plotH=H-marginT-marginB;
 
   const xMin=0, xMax=Math.max(1e-6,state.a);
@@ -361,20 +381,41 @@ function drawGraph(){
   const X = v=> marginL + (v-xMin)/(xMax-xMin)*plotW;
   const Y = v=> marginT + (1-(v-yMin)/(yMax-yMin))*plotH;
 
+  // 背景とグリッド
   ctx.fillStyle='#f7f7f7'; ctx.fillRect(marginL,marginT,plotW,plotH);
   ctx.strokeStyle='#e5e5e5'; ctx.lineWidth=1;
-  for(let i=0;i<=10;i++){
-    const xx = X(xMin+(xMax-xMin)*i/10);
-    ctx.beginPath(); ctx.moveTo(xx,marginT); ctx.lineTo(xx,marginT+plotH); ctx.stroke();
+
+  // “きれいな”目盛
+  const tx = niceTicks(xMin, xMax, 8);
+  const ty = niceTicks(yMin, yMax, 8);
+
+  // 縦線＋xラベル
+  for(let i=0;i<tx.count;i++){
+    const xv = tx.start + tx.step*i;
+    const sx = X(xv);
+    ctx.beginPath(); ctx.moveTo(sx,marginT); ctx.lineTo(sx,marginT+plotH); ctx.stroke();
+    const s = xv.toFixed( (tx.step<1)?1:0 );
+    const w = ctx.measureText(s).width;
+    ctx.fillStyle='#555';
+    ctx.fillText(s, sx - w/2, marginT+plotH + 16);
   }
-  for(let j=0;j<=10;j++){
-    const yy = Y(yMin+(yMax-yMin)*j/10);
-    ctx.beginPath(); ctx.moveTo(marginL,yy); ctx.lineTo(marginL+plotW,yy); ctx.stroke();
+  // 横線＋yラベル
+  for(let j=0;j<ty.count;j++){
+    const yv = ty.start + ty.step*j;
+    const sy = Y(yv);
+    ctx.beginPath(); ctx.moveTo(marginL,sy); ctx.lineTo(marginL+plotW,sy); ctx.stroke();
+    const s = yv.toFixed( (ty.step<1)?1:0 );
+    const w = ctx.measureText(s).width;
+    ctx.fillStyle='#555';
+    ctx.fillText(s, marginL - w - 8, sy + 4);
   }
+
+  // 軸
   ctx.strokeStyle='#666'; ctx.lineWidth=1.5;
   ctx.beginPath(); ctx.moveTo(marginL,marginT+plotH); ctx.lineTo(marginL+plotW,marginT+plotH); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(marginL,marginT); ctx.lineTo(marginL,marginT+plotH); ctx.stroke();
 
+  // 軌跡
   if (state.showTrace && state.trace.length>=2){
     ctx.strokeStyle='#1f77b4'; ctx.lineWidth=2;
     ctx.beginPath();
@@ -383,6 +424,7 @@ function drawGraph(){
     ctx.stroke();
   }
 
+  // 現在点
   const px=state.x, py=state.x*(state.a-state.x);
   ctx.fillStyle='#d62728';
   ctx.beginPath(); ctx.arc(X(px),Y(py),5,0,Math.PI*2); ctx.fill();
@@ -390,18 +432,24 @@ function drawGraph(){
 
   const label=`(${px.toFixed(2)}, ${py.toFixed(2)})`;
   const tw = ctx.measureText(label).width;
-  const tx = X(px)+10, ty = Y(py)-10;
+  const txp = X(px)+10, typ = Y(py)-10;
   ctx.fillStyle='rgba(255,255,255,.92)';
   ctx.strokeStyle='#666';
-  ctx.beginPath(); ctx.roundRect(tx-6,ty-16,tw+12,22,8); ctx.fill(); ctx.stroke();
-  ctx.fillStyle='#333'; ctx.fillText(label, tx, ty);
+  ctx.beginPath(); ctx.roundRect(txp-6,typ-16,tw+12,22,8); ctx.fill(); ctx.stroke();
+  ctx.fillStyle='#333'; ctx.fillText(label, txp, typ);
+
+  // 軸ラベル
+  ctx.fillStyle='#333';
+  ctx.fillText('面積', marginL-32, marginT-6);
+  ctx.fillText('縦の長さ', marginL+plotW+6, marginT+plotH+16);
 }
 
 /*================= 初期化＆リサイズ対応 =================*/
 (function init(){
+  document.getElementById('labA').textContent='𝑎:';
+  document.getElementById('labX').textContent='𝑥:';
   xIn.max=state.a; aIn.value=state.a; xIn.value=state.x; xRange.value=Math.round((state.x/state.a)*1000);
   drawAll();
-  // 画面サイズが変わっても常に全面フィット
   window.addEventListener('resize', drawAll, {passive:true});
   window.addEventListener('orientationchange', drawAll, {passive:true});
 })();
