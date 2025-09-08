@@ -20,6 +20,9 @@
   main{min-height:0; display:grid; grid-template-columns:minmax(320px,1fr) minmax(320px,1fr); gap:var(--gap); padding:var(--gap); box-sizing:border-box; overflow:hidden;}
   canvas{display:block; width:100%; height:100%; background:#fff; border:1px solid #eee; border-radius:12px; box-shadow:0 1px 0 rgba(0,0,0,.03) inset;}
 
+  /* 画面が広すぎる時に巨大化し過ぎないための上限（任意） */
+  main{ max-width: 1400px; margin-inline:auto; }
+
   /* スタート全画面オーバーレイ */
   #startFS{
     position:fixed; inset:0; display:grid; place-items:center;
@@ -339,7 +342,7 @@ function drawRopeRect(ctx,x,y,w,h,th){
   ctx.restore();
 }
 
-/* -------- 幾何パネル -------- */
+/* -------- 幾何パネル（太さ込みで確実に収まる版） -------- */
 const 𝑎='𝑎', 𝑥='𝑥';
 function drawGeom(){
   const ctx = fitCanvas(cvsGeom);
@@ -347,17 +350,32 @@ function drawGeom(){
   ctx.clearRect(0,0,W,H);
   ctx.font = `${GEO_FONT_PX}px system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Sans","Noto Sans JP",sans-serif`;
 
-  const margin=40;
-  const aw=Math.max(1, W-2*margin), ah=Math.max(1, H-2*margin);
-  const unit = Math.min(aw/state.a, ah/state.a);   // 常に全体収まる
-  const h = state.x*unit, w=(state.a-state.x)*unit;
-  const ox = margin + (aw-w)/2;
-  const oy = H - margin;
+  const margin = 40;
+  const aw = Math.max(1, W - 2*margin);
+  const ah = Math.max(1, H - 2*margin);
 
-  const baseLen = Math.min(W,H);
-  const thickness = Math.max(12, Math.min(42, Math.round(baseLen*0.020))); // 少し細め
-  drawRopeRect(ctx, ox, oy-h, w, h, thickness);
+  /* 先にロープの太さを決める（従来より少し細め） */
+  const baseLen   = Math.min(W, H);
+  const thickness = Math.max(10, Math.min(36, Math.round(baseLen * 0.016)));
 
+  /* 太さ込みで収まる可用領域（外枠が ±th/2 はみ出るため） */
+  const usableW = Math.max(1, aw - thickness);
+  const usableH = Math.max(1, ah - thickness);
+
+  /* 単位長：state.a が usableW/usableH に収まるように */
+  const unit = Math.max(0.0001, Math.min(usableW/state.a, usableH/state.a));
+
+  const h = state.x * unit;
+  const w = (state.a - state.x) * unit;
+
+  /* 外側のロープ矩形（w+th, h+th）が中央に来るよう原点調整 */
+  const ox = margin + (aw - (w + thickness))/2 + thickness/2;
+  const oy = H - margin - thickness/2;
+
+  /* ロープ枠 */
+  drawRopeRect(ctx, ox, oy - h, w, h, thickness);
+
+  /* 寸法線・ラベル */
   ctx.save();
   ctx.strokeStyle='#666'; ctx.fillStyle='#333'; ctx.lineWidth=1.6;
   const tx = Math.round(ox + w + 28);
@@ -374,6 +392,7 @@ function drawGeom(){
   ctx.fillText(wLabel, ox + w/2 - ctx.measureText(wLabel).width/2, ty + GEO_FONT_PX*0.9);
   ctx.restore();
 
+  /* 情報ボックス（フォント2倍） */
   ctx.save();
   const yVal = state.x*(state.a-state.x);
   const lines = [
@@ -412,7 +431,8 @@ function drawGraph(){
   ctx.clearRect(0,0,W,H);
   ctx.font = '12px system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Sans","Noto Sans JP",sans-serif';
 
-  const marginL=80, marginR=18, marginT=24, marginB=48;
+  /* 余白を少し広げて、目盛が消えないように */
+  const marginL=88, marginR=20, marginT=28, marginB=56;
   const plotW=Math.max(1, W-marginL-marginR), plotH=Math.max(1, H-marginT-marginB);
 
   const xMin=0, xMax=Math.max(1e-6,state.a);
