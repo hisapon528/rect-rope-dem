@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>長方形の面積 可視化（ロープ枠/ブラウザ版）</title>
+<title>長方形の面積 可視化（ロープ枠 / ブラウザ版）</title>
 <style>
   :root{ --gap:24px; --ui:14px; --header-h:56px; }
   html,body{height:100%; margin:0}
@@ -22,18 +22,30 @@
 
   /* スタート全画面オーバーレイ */
   #startFS{
-    position:fixed; inset:0; display:grid; place-items:center; background:rgba(0,0,0,.5);
-    color:#fff; z-index:1000;
+    position:fixed; inset:0; display:grid; place-items:center;
+    background:rgba(0,0,0,.5); color:#fff; z-index:1000;
   }
+  #startFS.is-hidden{ display:none !important; }
   #startFS .panel{
-    background:#111; padding:28px 32px; border-radius:16px; text-align:center; max-width:min(92vw,560px);
+    position:relative;
+    background:#111; padding:28px 32px; border-radius:16px; text-align:center;
+    max-width:min(92vw,560px);
     box-shadow:0 10px 30px rgba(0,0,0,.35);
   }
   #startFS h1{margin:0 0 10px; font-size:22px}
   #startFS p{margin:0 0 18px; opacity:.9}
   #startBtn{
-    font-size:16px; padding:10px 18px; border-radius:10px; border:1px solid #3aa36e; background:#38c172; color:#fff; cursor:pointer;
+    font-size:16px; padding:10px 18px; border-radius:10px;
+    border:1px solid #3aa36e; background:#38c172; color:#fff; cursor:pointer;
   }
+  /* 右上 × ボタン */
+  #startClose{
+    position:absolute; top:8px; right:8px;
+    width:32px; height:32px; border-radius:8px;
+    border:1px solid #444; background:#222; color:#fff; cursor:pointer;
+    font-size:18px; line-height:30px; padding:0;
+  }
+  #startClose:hover{ background:#2a2a2a; }
 
   /* 終了ボタン（右上固定） */
   #quitBtn{
@@ -44,9 +56,10 @@
 </style>
 </head>
 <body>
-  <!-- 起動時に押してもらう全画面ボタン -->
-  <div id="startFS" hidden>
+  <!-- 起動時に押してもらう全画面ボタン（×で閉じると通常表示のまま進行） -->
+  <div id="startFS" aria-hidden="false">
     <div class="panel">
+      <button id="startClose" aria-label="閉じる">×</button>
       <h1>全画面で開始</h1>
       <p>ボタンを押すと全画面表示になります（ブラウザの仕様で自動では切り替えられません）。</p>
       <button id="startBtn">全画面で開始する</button>
@@ -76,7 +89,7 @@
   </main>
 
 <script>
-/* ========= ここより下はアプリ本体（前回版 + FS/終了 追加） ========= */
+/* ========= ここより下はアプリ本体 ========= */
 
 /* 状態/UI */
 const state = { a:8, x:4, showTrace:false, trace:[] };
@@ -87,8 +100,9 @@ const traceBtn=document.querySelector('#traceBtn');
 const cvsGeom=document.querySelector('#geom');
 const cvsGraph=document.querySelector('#graph');
 const quitBtn=document.querySelector('#quitBtn');
-const startFS=document.querySelector('#startFS');
-const startBtn=document.querySelector('#startBtn');
+const startFS=document.getElementById('startFS');
+const startBtn=document.getElementById('startBtn');
+const startClose=document.getElementById('startClose');
 const DPR = Math.max(1, window.devicePixelRatio||1);
 
 /* 幾何パネルだけ文字2倍 */
@@ -96,17 +110,27 @@ const GEO_FONT_PX = 28;
 const GEO_LINE_H  = Math.round(GEO_FONT_PX*1.25);
 
 /* -------- フルスクリーン制御 & 終了 -------- */
-function showStartOverlayIfNeeded(){
-  // 自動FSは禁止なので必ずオーバーレイを出す
-  startFS.hidden = false;
+function showStartOverlay(){
+  startFS?.classList.remove('is-hidden');
+  startFS?.setAttribute('aria-hidden','false');
+  if (startFS) startFS.style.display = 'grid';
+}
+function hideStartOverlay(){
+  startFS?.classList.add('is-hidden');
+  startFS?.setAttribute('aria-hidden','true');
+  if (startFS) startFS.style.display = 'none';
 }
 async function enterFullscreen(){
   try{
-    await document.documentElement.requestFullscreen();
-    // 可能なら横向きロック（失敗しても無視）
-    if (screen.orientation?.lock) { screen.orientation.lock('landscape').catch(()=>{}); }
-  }catch(e){ /* 失敗しても続行 */ }
-  startFS.hidden = true;
+    const target = document.documentElement || document.body;
+    if (target.requestFullscreen)      await target.requestFullscreen();
+    else if (target.webkitRequestFullscreen) target.webkitRequestFullscreen();
+    if (screen.orientation?.lock) screen.orientation.lock('landscape').catch(()=>{});
+  }catch(e){
+    /* 失敗しても続行 */
+  }finally{
+    hideStartOverlay(); // ←成否に関わらず閉じる
+  }
 }
 async function exitFullscreen(){
   if (document.fullscreenElement){
@@ -116,11 +140,8 @@ async function exitFullscreen(){
 async function quitApp(){
   quitBtn.disabled = true;
   await exitFullscreen();
-  // タブを閉じる試行（ブラウザによっては開いたスクリプト起源のみ許可）
   try{ window.close(); }catch(e){}
-  // 別経路（多くのブラウザでブロックされる可能性あり）
   try{ const w = window.open('','_self'); w.close(); }catch(e){}
-  // 最後の手段：空ページに遷移（タブは残るが内容は閉じるのに近い）
   setTimeout(()=>{ 
     alert('このタブはブラウザの仕様で自動では閉じられません。\nタブの × を押すか、Ctrl+W / ⌘W で閉じてください。');
     quitBtn.disabled = false;
@@ -128,14 +149,10 @@ async function quitApp(){
 }
 quitBtn.addEventListener('click', quitApp);
 startBtn?.addEventListener('click', enterFullscreen);
-document.addEventListener('keydown', (ev)=>{
-  if ((ev.key==='Escape' || ev.key==='Esc') && document.fullscreenElement){
-    // ESCでフルスクリーン解除
-    exitFullscreen();
-  }
-});
+startClose?.addEventListener('click', hideStartOverlay);
+document.addEventListener('DOMContentLoaded', showStartOverlay);
 
-/* -------- 入力同期（前回と同じ） -------- */
+/* -------- 入力同期 -------- */
 function applyA(){
   const a = Math.max(0.1, parseFloat(aIn.value)||8);
   const ratio = state.a>0 ? state.x/state.a : 0;
@@ -201,7 +218,7 @@ CanvasRenderingContext2D.prototype.roundRect ??= function(x,y,w,h,r){
   this.closePath();
 }
 
-/* -------- ロープタイル（細かめ/薄茶+黒縞） -------- */
+/* -------- ロープタイル（薄茶ベース / 黒縞） -------- */
 function makeRopeTile(thickness){
   const h = Math.max(8, Math.round(thickness));
   const w = Math.max(96, Math.round(h*6));
@@ -209,7 +226,7 @@ function makeRopeTile(thickness){
   const g = c.getContext('2d');
 
   g.fillStyle='#d8c090'; g.fillRect(0,0,w,h);           // 薄茶
-  const grd = g.createLinearGradient(0,0,0,h);         // 円筒陰影
+  const grd = g.createLinearGradient(0,0,0,h);          // 円筒陰影
   grd.addColorStop(0,'rgba(0,0,0,0.18)');
   grd.addColorStop(0.5,'rgba(0,0,0,0.00)');
   grd.addColorStop(1,'rgba(0,0,0,0.22)');
@@ -253,8 +270,8 @@ function drawRoundRectPath(ctx,x,y,w,h,r){
   ctx.moveTo(x+r,y);
   ctx.arcTo(x+w,y, x+w,y+h, r);
   ctx.arcTo(x+w,y+h, x,y+h, r);
-  ctx.arcTo(x,y+h, x,y, r);
-  ctx.arcTo(x,y, x+w,y, r);
+  ctx.arcTo(x,  y+h, x,y,   r);
+  ctx.arcTo(x,  y,   x+w,y, r);
   ctx.closePath();
 }
 function drawRopeEdge(ctx,tile,x1,y1,x2,y2,phase){
@@ -338,7 +355,7 @@ function drawGeom(){
   const oy = H - margin;
 
   const baseLen = Math.min(W,H);
-  const thickness = Math.max(12, Math.min(42, Math.round(baseLen*0.020)));
+  const thickness = Math.max(12, Math.min(42, Math.round(baseLen*0.020))); // 少し細め
   drawRopeRect(ctx, ox, oy-h, w, h, thickness);
 
   ctx.save();
@@ -396,7 +413,7 @@ function drawGraph(){
   ctx.font = '12px system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Sans","Noto Sans JP",sans-serif';
 
   const marginL=80, marginR=18, marginT=24, marginB=48;
-  const plotW=W-marginL-marginR, plotH=H-marginT-marginB;
+  const plotW=Math.max(1, W-marginL-marginR), plotH=Math.max(1, H-marginT-marginB);
 
   const xMin=0, xMax=Math.max(1e-6,state.a);
   const yMin=0, yMax=Math.max(1e-6, state.a*state.a/4);
@@ -413,13 +430,13 @@ function drawGraph(){
   for(let i=0;i<tx.count;i++){
     const xv=tx.start+tx.step*i, sx=X(xv);
     ctx.beginPath(); ctx.moveTo(sx,marginT); ctx.lineTo(sx,marginT+plotH); ctx.stroke();
-    const s=xv.toFixed((tx.step<1)?1:0), w=ctx.measureText(s).width;
+    const s=(tx.step<1)?xv.toFixed(1):xv.toFixed(0), w=ctx.measureText(s).width;
     ctx.fillStyle='#555'; ctx.fillText(s, sx-w/2, marginT+plotH+16);
   }
   for(let j=0;j<ty.count;j++){
     const yv=ty.start+ty.step*j, sy=Y(yv);
     ctx.beginPath(); ctx.moveTo(marginL,sy); ctx.lineTo(marginL+plotW,sy); ctx.stroke();
-    const s=yv.toFixed((ty.step<1)?1:0), w=ctx.measureText(s).width;
+    const s=(ty.step<1)?yv.toFixed(1):yv.toFixed(0), w=ctx.measureText(s).width;
     ctx.fillStyle='#555'; ctx.fillText(s, marginL-w-8, sy+4);
   }
 
@@ -459,7 +476,6 @@ function drawGraph(){
   drawAll();
   window.addEventListener('resize', drawAll, {passive:true});
   window.addEventListener('orientationchange', drawAll, {passive:true});
-  showStartOverlayIfNeeded();            // 起動時にFS案内を表示
 })();
 function drawAll(){ drawGeom(); drawGraph(); }
 </script>
