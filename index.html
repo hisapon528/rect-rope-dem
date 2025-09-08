@@ -19,7 +19,7 @@
   button{appearance:none; border:1px solid #cfcfcf; border-radius:8px; background:#fff; padding:6px 10px; cursor:pointer}
   main{min-height:0; display:grid; grid-template-columns:minmax(320px,1fr) minmax(320px,1fr); gap:var(--gap); padding:var(--gap); box-sizing:border-box; overflow:hidden;}
   canvas{display:block; width:100%; height:100%; background:#fff; border:1px solid #eee; border-radius:12px; box-shadow:0 1px 0 rgba(0,0,0,.03) inset;}
-  /* ページ幅を少し抑える（2パネルを小さめに） */
+  /* 2パネルを少し小さめに */
   main{ max-width: 1200px; margin-inline:auto; }
 
   /* 起動オーバーレイ＆終了ボタン */
@@ -285,7 +285,7 @@ function drawRopeRect(ctx,x,y,w,h,th){
   ctx.restore();
 }
 
-/* ===== 幾何パネル：安全スケールを入れて必ず収まる ===== */
+/* ===== 幾何パネル（小さめに描画） ===== */
 const 𝑎='𝑎', 𝑥='𝑥';
 function drawGeom(){
   const ctx = fitCanvas(cvsGeom);
@@ -293,7 +293,7 @@ function drawGeom(){
   ctx.clearRect(0,0,W,H);
   ctx.font = `${GEO_FONT_PX}px system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Sans","Noto Sans JP",sans-serif`;
 
-  const SHRINK = 0.88;                 // ← ここで小さめにする
+  const SHRINK = 0.88;
 
   const margin = 24;
   const LEFT_SAFE   = 12;
@@ -307,7 +307,6 @@ function drawGeom(){
   const aw = Math.max(1, W - (margin*2 + LEFT_SAFE + RIGHT_SAFE));
   const ah = Math.max(1, H - (margin*2 + TOP_SAFE + BOTTOM_SAFE));
 
-  // 縮小領域（中央寄せ）
   const innerW = aw*SHRINK;
   const innerH = ah*SHRINK;
   const padX = (aw - innerW)/2;
@@ -383,15 +382,16 @@ function drawGraph(){
   const marginL=88, marginR=20, marginT=28, marginB=56;
   const plotW0=Math.max(1, W-marginL-marginR), plotH0=Math.max(1, H-marginT-marginB);
 
-  // ここで全体を少し小さめに描画
+  // 少し小さめに中央へ
   const SHRINK = 0.90;
   const plotW = plotW0*SHRINK;
   const plotH = plotH0*SHRINK;
   const offX  = marginL + (plotW0-plotW)/2;
   const offY  = marginT + (plotH0-plotH)/2;
 
-  const xMin=0, xMax=Math.max(1e-6,state.a);
-  const yMin=0, yMax=Math.max(1e-6, state.a*state.a/4);
+  // ★ 軸の最大値：x 最大 = a + 2、y 最大 = 面積最大 + 2 = a^2/4 + 2
+  const xMin=0, xMax=Math.max(1e-6, state.a + 2);
+  const yMin=0, yMax=Math.max(1e-6, state.a*state.a/4 + 2);
 
   const X = v=> offX + (v-xMin)/(xMax-xMin)*plotW;
   const Y = v=> offY + (1-(v-yMin)/(yMax-yMin))*plotH;
