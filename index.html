@@ -5,45 +5,58 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>長方形の面積 可視化（ロープ枠/ブラウザ版）</title>
 <style>
-  :root{
-    --gap:24px;
-    --ui:14px;
-    --header-h:56px;
-  }
+  :root{ --gap:24px; --ui:14px; --header-h:56px; }
   html,body{height:100%; margin:0}
   body{
-    display:grid;
-    grid-template-rows: var(--header-h) 1fr;
-    height:100dvh;
-    overflow:hidden;
-    background:#fafafa;
-    font:var(--ui)/1.4 system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Sans","Noto Sans JP",sans-serif;
-    color:#333;
+    display:grid; grid-template-rows: var(--header-h) 1fr;
+    height:100dvh; overflow:hidden; background:#fafafa;
+    font:var(--ui)/1.4 system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Sans","Noto Sans JP",sans-serif; color:#333;
   }
-
-  header{
-    display:flex; align-items:center; gap:48px;
-    padding:10px 16px; border-bottom:1px solid #e6e6e6; background:#fff;
-  }
+  header{display:flex; align-items:center; gap:48px; padding:10px 16px; border-bottom:1px solid #e6e6e6; background:#fff;}
   header .grp{display:flex; align-items:center; gap:8px}
   input[type="number"]{width:84px; padding:6px 8px; border:1px solid #cfcfcf; border-radius:8px}
   input[type="range"]{width:160px}
   button{appearance:none; border:1px solid #cfcfcf; border-radius:8px; background:#fff; padding:6px 10px; cursor:pointer}
+  main{min-height:0; display:grid; grid-template-columns:minmax(320px,1fr) minmax(320px,1fr); gap:var(--gap); padding:var(--gap); box-sizing:border-box; overflow:hidden;}
+  canvas{display:block; width:100%; height:100%; background:#fff; border:1px solid #eee; border-radius:12px; box-shadow:0 1px 0 rgba(0,0,0,.03) inset;}
 
-  main{
-    min-height:0;
-    display:grid; grid-template-columns:minmax(320px,1fr) minmax(320px,1fr);
-    gap:var(--gap); padding:var(--gap); box-sizing:border-box; overflow:hidden;
+  /* スタート全画面オーバーレイ */
+  #startFS{
+    position:fixed; inset:0; display:grid; place-items:center; background:rgba(0,0,0,.5);
+    color:#fff; z-index:1000;
   }
-  canvas{
-    display:block;
-    width:100%; height:100%;
-    background:#fff; border:1px solid #eee; border-radius:12px;
-    box-shadow:0 1px 0 rgba(0,0,0,.03) inset;
+  #startFS .panel{
+    background:#111; padding:28px 32px; border-radius:16px; text-align:center; max-width:min(92vw,560px);
+    box-shadow:0 10px 30px rgba(0,0,0,.35);
   }
+  #startFS h1{margin:0 0 10px; font-size:22px}
+  #startFS p{margin:0 0 18px; opacity:.9}
+  #startBtn{
+    font-size:16px; padding:10px 18px; border-radius:10px; border:1px solid #3aa36e; background:#38c172; color:#fff; cursor:pointer;
+  }
+
+  /* 終了ボタン（右上固定） */
+  #quitBtn{
+    position:fixed; top:10px; right:10px; z-index:900;
+    padding:8px 12px; border-radius:10px; border:1px solid #d66; background:#f66; color:#fff; font-weight:600; cursor:pointer;
+  }
+  #quitBtn:disabled{opacity:.5; cursor:default}
 </style>
 </head>
 <body>
+  <!-- 起動時に押してもらう全画面ボタン -->
+  <div id="startFS" hidden>
+    <div class="panel">
+      <h1>全画面で開始</h1>
+      <p>ボタンを押すと全画面表示になります（ブラウザの仕様で自動では切り替えられません）。</p>
+      <button id="startBtn">全画面で開始する</button>
+      <p style="margin-top:10px; font-size:12px; opacity:.8;">※ うまく入らない場合は F11（Macは ⌃⌘F）でも全画面にできます。</p>
+    </div>
+  </div>
+
+  <!-- 右上「終了」 -->
+  <button id="quitBtn" title="終了">終了</button>
+
   <header>
     <div class="grp">
       <label id="labA" for="aIn">𝑎:</label>
@@ -63,7 +76,9 @@
   </main>
 
 <script>
-/*================= 状態とUI =================*/
+/* ========= ここより下はアプリ本体（前回版 + FS/終了 追加） ========= */
+
+/* 状態/UI */
 const state = { a:8, x:4, showTrace:false, trace:[] };
 const aIn=document.querySelector('#aIn');
 const xRange=document.querySelector('#xRange');
@@ -71,13 +86,56 @@ const xIn=document.querySelector('#xIn');
 const traceBtn=document.querySelector('#traceBtn');
 const cvsGeom=document.querySelector('#geom');
 const cvsGraph=document.querySelector('#graph');
+const quitBtn=document.querySelector('#quitBtn');
+const startFS=document.querySelector('#startFS');
+const startBtn=document.querySelector('#startBtn');
 const DPR = Math.max(1, window.devicePixelRatio||1);
 
-/* 幾何パネルだけ文字を2倍（前回のまま） */
+/* 幾何パネルだけ文字2倍 */
 const GEO_FONT_PX = 28;
 const GEO_LINE_H  = Math.round(GEO_FONT_PX*1.25);
 
-/*================= 入力同期 =================*/
+/* -------- フルスクリーン制御 & 終了 -------- */
+function showStartOverlayIfNeeded(){
+  // 自動FSは禁止なので必ずオーバーレイを出す
+  startFS.hidden = false;
+}
+async function enterFullscreen(){
+  try{
+    await document.documentElement.requestFullscreen();
+    // 可能なら横向きロック（失敗しても無視）
+    if (screen.orientation?.lock) { screen.orientation.lock('landscape').catch(()=>{}); }
+  }catch(e){ /* 失敗しても続行 */ }
+  startFS.hidden = true;
+}
+async function exitFullscreen(){
+  if (document.fullscreenElement){
+    try{ await document.exitFullscreen(); }catch(e){}
+  }
+}
+async function quitApp(){
+  quitBtn.disabled = true;
+  await exitFullscreen();
+  // タブを閉じる試行（ブラウザによっては開いたスクリプト起源のみ許可）
+  try{ window.close(); }catch(e){}
+  // 別経路（多くのブラウザでブロックされる可能性あり）
+  try{ const w = window.open('','_self'); w.close(); }catch(e){}
+  // 最後の手段：空ページに遷移（タブは残るが内容は閉じるのに近い）
+  setTimeout(()=>{ 
+    alert('このタブはブラウザの仕様で自動では閉じられません。\nタブの × を押すか、Ctrl+W / ⌘W で閉じてください。');
+    quitBtn.disabled = false;
+  }, 300);
+}
+quitBtn.addEventListener('click', quitApp);
+startBtn?.addEventListener('click', enterFullscreen);
+document.addEventListener('keydown', (ev)=>{
+  if ((ev.key==='Escape' || ev.key==='Esc') && document.fullscreenElement){
+    // ESCでフルスクリーン解除
+    exitFullscreen();
+  }
+});
+
+/* -------- 入力同期（前回と同じ） -------- */
 function applyA(){
   const a = Math.max(0.1, parseFloat(aIn.value)||8);
   const ratio = state.a>0 ? state.x/state.a : 0;
@@ -105,7 +163,6 @@ function applyXFromInput(){
 aIn.addEventListener('input', applyA);
 xRange.addEventListener('input', applyXFromRange);
 xIn.addEventListener('input', applyXFromInput);
-
 traceBtn.addEventListener('click', ()=>{
   state.showTrace = !state.showTrace;
   traceBtn.textContent = state.showTrace ? '軌跡を非表示' : '軌跡を表示';
@@ -113,7 +170,6 @@ traceBtn.addEventListener('click', ()=>{
   if (state.showTrace) pushTrace();
   drawAll();
 });
-
 function pushTrace(){
   const y = state.x*(state.a-state.x);
   const last = state.trace[state.trace.length-1];
@@ -123,7 +179,7 @@ function pushTrace(){
   }
 }
 
-/*================= キャンバス整形 =================*/
+/* -------- キャンバス整形 -------- */
 function fitCanvas(cvs){
   const r = cvs.getBoundingClientRect();
   const w = Math.max(1, Math.floor(r.width*DPR));
@@ -145,33 +201,28 @@ CanvasRenderingContext2D.prototype.roundRect ??= function(x,y,w,h,r){
   this.closePath();
 }
 
-/*================= ロープ用タイル生成（細かめに/薄茶＋黒縞） =================*/
+/* -------- ロープタイル（細かめ/薄茶+黒縞） -------- */
 function makeRopeTile(thickness){
-  const h = Math.max(8, Math.round(thickness));          // 太さ = タイル高さ
-  const w = Math.max(96, Math.round(h*6));               // 一回り細かい繰り返し
+  const h = Math.max(8, Math.round(thickness));
+  const w = Math.max(96, Math.round(h*6));
   const c = document.createElement('canvas'); c.width=w; c.height=h;
   const g = c.getContext('2d');
 
-  // ベース（薄茶）
-  g.fillStyle='#d8c090'; g.fillRect(0,0,w,h);
-
-  // 円筒陰影
-  const grd = g.createLinearGradient(0,0,0,h);
+  g.fillStyle='#d8c090'; g.fillRect(0,0,w,h);           // 薄茶
+  const grd = g.createLinearGradient(0,0,0,h);         // 円筒陰影
   grd.addColorStop(0,'rgba(0,0,0,0.18)');
   grd.addColorStop(0.5,'rgba(0,0,0,0.00)');
   grd.addColorStop(1,'rgba(0,0,0,0.22)');
   g.fillStyle=grd; g.fillRect(0,0,w,h);
 
-  // 縞：ターゲット周期を小さめ（=模様が細かく見える）
-  const targetPeriod = Math.max(6, Math.round(h*0.40));   // ← 0.55 → 0.40 に変更
+  const targetPeriod = Math.max(6, Math.round(h*0.40));
   let N = Math.max(20, Math.floor(w/targetPeriod));
   if (N%2===1) N++;
   const period = Math.max(4, Math.floor(w/N));
   const stripeW = Math.max(2, Math.floor(period/2));
 
   // -45°
-  g.save();
-  g.translate(w/2,h/2); g.rotate(-Math.PI/4); g.translate(-w/2,-h/2);
+  g.save(); g.translate(w/2,h/2); g.rotate(-Math.PI/4); g.translate(-w/2,-h/2);
   g.globalAlpha = 0.80; g.fillStyle='#000';
   for(let i=-N;i<2*N;i++){ g.fillRect(i*period, -w, stripeW, 2*w); }
   g.globalAlpha = 0.60;
@@ -179,16 +230,14 @@ function makeRopeTile(thickness){
   g.restore();
 
   // +45°
-  g.save();
-  g.translate(w/2,h/2); g.rotate(+Math.PI/4); g.translate(-w/2,-h/2);
+  g.save(); g.translate(w/2,h/2); g.rotate(+Math.PI/4); g.translate(-w/2,-h/2);
   g.globalAlpha = 0.28; g.fillStyle='#000';
   for(let i=-N;i<2*N;i++){ g.fillRect(i*period, -w, stripeW, 2*w); }
   g.globalAlpha = 0.20;
   for(let i=-N;i<2*N;i++){ g.fillRect(i*period+stripeW, -w, stripeW, 2*w); }
   g.restore();
 
-  // 微小ノイズ
-  const img = g.getImageData(0,0,w,h);
+  const img = g.getImageData(0,0,w,h);                  // 微小ノイズ
   const dt = img.data;
   for(let i=0;i<dt.length;i+=4){
     const n=(Math.random()-0.5)*12;
@@ -199,7 +248,7 @@ function makeRopeTile(thickness){
   return {image:c,w,h};
 }
 
-/*================= ロープ描画（位相継承＋リングclip＋黒輪郭） =================*/
+/* -------- ロープ描画（位相継承＋リングclip＋黒輪郭） -------- */
 function drawRoundRectPath(ctx,x,y,w,h,r){
   ctx.moveTo(x+r,y);
   ctx.arcTo(x+w,y, x+w,y+h, r);
@@ -213,11 +262,9 @@ function drawRopeEdge(ctx,tile,x1,y1,x2,y2,phase){
   if (len<0.5) return phase;
   const ang=Math.atan2(dy,dx);
   ctx.save();
-  ctx.translate(x1,y1);
-  ctx.rotate(ang);
+  ctx.translate(x1,y1); ctx.rotate(ang);
   const pat=ctx.createPattern(tile.image,'repeat');
   if (pat && pat.setTransform){
-    // 垂直方向は常に中心合わせ（太さが変わっても下に“ずれ”ない）
     pat.setTransform(new DOMMatrix().translate(-phase,-tile.h/2));
   }else{
     ctx.translate(-phase,0);
@@ -244,7 +291,6 @@ function drawRopeRect(ctx,x,y,w,h,th){
   r = Math.max(0, r);
 
   ctx.save();
-  // リングでクリップ（角の“風車”解消）
   ctx.beginPath();
   drawRoundRectPath(ctx, x-th/2, y-th/2, w+th, h+th, r+th/2);
   drawRoundRectPath(ctx, x+th/2, y+th/2, w-th, h-th, Math.max(0,r-th/2));
@@ -268,7 +314,6 @@ function drawRopeRect(ctx,x,y,w,h,th){
   }
   ctx.restore();
 
-  // 黒輪郭
   ctx.save();
   ctx.strokeStyle='#000';
   ctx.lineWidth=Math.max(1.4, th*0.08);
@@ -277,53 +322,41 @@ function drawRopeRect(ctx,x,y,w,h,th){
   ctx.restore();
 }
 
-/*================= 幾何パネル（文字2倍のまま） =================*/
-const 𝑎='𝑎', 𝑥='𝑥'; // 数式風イタリック
+/* -------- 幾何パネル -------- */
+const 𝑎='𝑎', 𝑥='𝑥';
 function drawGeom(){
   const ctx = fitCanvas(cvsGeom);
   const W = cvsGeom.clientWidth, H = cvsGeom.clientHeight;
   ctx.clearRect(0,0,W,H);
-
   ctx.font = `${GEO_FONT_PX}px system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Sans","Noto Sans JP",sans-serif`;
 
   const margin=40;
-  const aw=Math.max(1, W-2*margin);
-  const ah=Math.max(1, H-2*margin);
-  const unit = Math.min(aw/state.a, ah/state.a);   // 常に全体が入るスケール
-
+  const aw=Math.max(1, W-2*margin), ah=Math.max(1, H-2*margin);
+  const unit = Math.min(aw/state.a, ah/state.a);   // 常に全体収まる
   const h = state.x*unit, w=(state.a-state.x)*unit;
   const ox = margin + (aw-w)/2;
   const oy = H - margin;
 
-  // ★ ロープ太さは画面基準で一定（x を動かしても模様が下にずれない）
   const baseLen = Math.min(W,H);
   const thickness = Math.max(12, Math.min(42, Math.round(baseLen*0.020)));
-
   drawRopeRect(ctx, ox, oy-h, w, h, thickness);
 
-  // 寸法線
   ctx.save();
   ctx.strokeStyle='#666'; ctx.fillStyle='#333'; ctx.lineWidth=1.6;
-
   const tx = Math.round(ox + w + 28);
-  ctx.beginPath();
-  ctx.moveTo(tx, oy-h); ctx.lineTo(tx, oy);
+  ctx.beginPath(); ctx.moveTo(tx, oy-h); ctx.lineTo(tx, oy);
   ctx.moveTo(tx-8, oy-h); ctx.lineTo(tx+8, oy-h);
-  ctx.moveTo(tx-8, oy);   ctx.lineTo(tx+8, oy);
-  ctx.stroke();
+  ctx.moveTo(tx-8, oy);   ctx.lineTo(tx+8, oy); ctx.stroke();
   ctx.fillText(`縦の長さ = ${𝑥} = ${state.x.toFixed(3)}`, tx+10, oy - h/2);
 
   const ty = Math.round(oy + 30);
-  ctx.beginPath();
-  ctx.moveTo(ox, ty); ctx.lineTo(ox+w, ty);
+  ctx.beginPath(); ctx.moveTo(ox, ty); ctx.lineTo(ox+w, ty);
   ctx.moveTo(ox, ty-8); ctx.lineTo(ox, ty+8);
-  ctx.moveTo(ox+w, ty-8); ctx.lineTo(ox+w, ty+8);
-  ctx.stroke();
+  ctx.moveTo(ox+w, ty-8); ctx.lineTo(ox+w, ty+8); ctx.stroke();
   const wLabel = `横の長さ = ${𝑎} − ${𝑥} = ${(state.a-state.x).toFixed(3)}`;
   ctx.fillText(wLabel, ox + w/2 - ctx.measureText(wLabel).width/2, ty + GEO_FONT_PX*0.9);
   ctx.restore();
 
-  // 情報ボックス（文字2倍）
   ctx.save();
   const yVal = state.x*(state.a-state.x);
   const lines = [
@@ -337,42 +370,32 @@ function drawGeom(){
   const boxW = maxw + pad*2;
   const boxH = GEO_LINE_H*lines.length + pad*2;
 
-  ctx.fillStyle='#fff8d2';
-  ctx.strokeStyle='#b28a20';
-  ctx.lineWidth=1.6;
+  ctx.fillStyle='#fff8d2'; ctx.strokeStyle='#b28a20'; ctx.lineWidth=1.6;
   ctx.beginPath(); ctx.roundRect(bx, by, boxW, boxH, 12); ctx.fill(); ctx.stroke();
-
   ctx.fillStyle='#333';
   lines.forEach((s,i)=> ctx.fillText(s, bx+pad, by+pad + GEO_LINE_H*(i+0.75)));
   ctx.restore();
 }
 
-/*================= “見やすい目盛り”ユーティリティ =================*/
+/* -------- 目盛りユーティリティ & 関数パネル -------- */
 function niceTicks(min, max, maxCount=8){
-  const span = max-min;
-  if (span<=0 || !isFinite(span)) return {start:min, step:1, count:2};
+  const span = max-min; if (span<=0 || !isFinite(span)) return {start:min, step:1, count:2};
   const stepRaw = span / Math.max(1, maxCount);
   const pow10 = Math.pow(10, Math.floor(Math.log10(stepRaw)));
-  const bases = [1, 2, 2.5, 5, 10];
-  let step = bases[0]*pow10;
-  for (const b of bases){
-    const s = b*pow10;
-    if (span/ s <= maxCount){ step = s; break; }
-  }
+  const bases = [1,2,2.5,5,10];
+  let step=bases[0]*pow10;
+  for(const b of bases){ const s=b*pow10; if (span/s<=maxCount){ step=s; break; } }
   const start = Math.ceil(min/step)*step;
   const count = Math.floor((max-start)/step)+1;
   return {start, step, count:Math.max(2,count)};
 }
-
-/*================= 関数パネル（目盛り・数値を復活） =================*/
 function drawGraph(){
   const ctx = fitCanvas(cvsGraph);
   const W = cvsGraph.clientWidth, H = cvsGraph.clientHeight;
   ctx.clearRect(0,0,W,H);
-
   ctx.font = '12px system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Sans","Noto Sans JP",sans-serif';
 
-  const marginL=80, marginR=18, marginT=24, marginB=48; // ← ラベル分広げる
+  const marginL=80, marginR=18, marginT=24, marginB=48;
   const plotW=W-marginL-marginR, plotH=H-marginT-marginB;
 
   const xMin=0, xMax=Math.max(1e-6,state.a);
@@ -381,41 +404,29 @@ function drawGraph(){
   const X = v=> marginL + (v-xMin)/(xMax-xMin)*plotW;
   const Y = v=> marginT + (1-(v-yMin)/(yMax-yMin))*plotH;
 
-  // 背景とグリッド
   ctx.fillStyle='#f7f7f7'; ctx.fillRect(marginL,marginT,plotW,plotH);
   ctx.strokeStyle='#e5e5e5'; ctx.lineWidth=1;
 
-  // “きれいな”目盛
   const tx = niceTicks(xMin, xMax, 8);
   const ty = niceTicks(yMin, yMax, 8);
 
-  // 縦線＋xラベル
   for(let i=0;i<tx.count;i++){
-    const xv = tx.start + tx.step*i;
-    const sx = X(xv);
+    const xv=tx.start+tx.step*i, sx=X(xv);
     ctx.beginPath(); ctx.moveTo(sx,marginT); ctx.lineTo(sx,marginT+plotH); ctx.stroke();
-    const s = xv.toFixed( (tx.step<1)?1:0 );
-    const w = ctx.measureText(s).width;
-    ctx.fillStyle='#555';
-    ctx.fillText(s, sx - w/2, marginT+plotH + 16);
+    const s=xv.toFixed((tx.step<1)?1:0), w=ctx.measureText(s).width;
+    ctx.fillStyle='#555'; ctx.fillText(s, sx-w/2, marginT+plotH+16);
   }
-  // 横線＋yラベル
   for(let j=0;j<ty.count;j++){
-    const yv = ty.start + ty.step*j;
-    const sy = Y(yv);
+    const yv=ty.start+ty.step*j, sy=Y(yv);
     ctx.beginPath(); ctx.moveTo(marginL,sy); ctx.lineTo(marginL+plotW,sy); ctx.stroke();
-    const s = yv.toFixed( (ty.step<1)?1:0 );
-    const w = ctx.measureText(s).width;
-    ctx.fillStyle='#555';
-    ctx.fillText(s, marginL - w - 8, sy + 4);
+    const s=yv.toFixed((ty.step<1)?1:0), w=ctx.measureText(s).width;
+    ctx.fillStyle='#555'; ctx.fillText(s, marginL-w-8, sy+4);
   }
 
-  // 軸
   ctx.strokeStyle='#666'; ctx.lineWidth=1.5;
   ctx.beginPath(); ctx.moveTo(marginL,marginT+plotH); ctx.lineTo(marginL+plotW,marginT+plotH); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(marginL,marginT); ctx.lineTo(marginL,marginT+plotH); ctx.stroke();
 
-  // 軌跡
   if (state.showTrace && state.trace.length>=2){
     ctx.strokeStyle='#1f77b4'; ctx.lineWidth=2;
     ctx.beginPath();
@@ -424,7 +435,6 @@ function drawGraph(){
     ctx.stroke();
   }
 
-  // 現在点
   const px=state.x, py=state.x*(state.a-state.x);
   ctx.fillStyle='#d62728';
   ctx.beginPath(); ctx.arc(X(px),Y(py),5,0,Math.PI*2); ctx.fill();
@@ -433,25 +443,23 @@ function drawGraph(){
   const label=`(${px.toFixed(2)}, ${py.toFixed(2)})`;
   const tw = ctx.measureText(label).width;
   const txp = X(px)+10, typ = Y(py)-10;
-  ctx.fillStyle='rgba(255,255,255,.92)';
-  ctx.strokeStyle='#666';
+  ctx.fillStyle='rgba(255,255,255,.92)'; ctx.strokeStyle='#666';
   ctx.beginPath(); ctx.roundRect(txp-6,typ-16,tw+12,22,8); ctx.fill(); ctx.stroke();
   ctx.fillStyle='#333'; ctx.fillText(label, txp, typ);
 
-  // 軸ラベル
   ctx.fillStyle='#333';
   ctx.fillText('面積', marginL-32, marginT-6);
   ctx.fillText('縦の長さ', marginL+plotW+6, marginT+plotH+16);
 }
 
-/*================= 初期化＆リサイズ対応 =================*/
+/* -------- 初期化 -------- */
 (function init(){
-  document.getElementById('labA').textContent='𝑎:';
-  document.getElementById('labX').textContent='𝑥:';
+  document.getElementById('labA').textContent='𝑎:'; document.getElementById('labX').textContent='𝑥:';
   xIn.max=state.a; aIn.value=state.a; xIn.value=state.x; xRange.value=Math.round((state.x/state.a)*1000);
   drawAll();
   window.addEventListener('resize', drawAll, {passive:true});
   window.addEventListener('orientationchange', drawAll, {passive:true});
+  showStartOverlayIfNeeded();            // 起動時にFS案内を表示
 })();
 function drawAll(){ drawGeom(); drawGraph(); }
 </script>
