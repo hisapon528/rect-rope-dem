@@ -2,51 +2,55 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>教科書p102 応用例題３</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>教科書p102 応用例題3（ロープ長方形 / レスポンシブ）</title>
 <style>
-  :root{ --gap:24px; --ui:14px; --header-h:56px; }
-  html,body{height:100%; margin:0}
-  body{
-    display:grid; grid-template-rows: var(--header-h) 1fr;
-    height:100dvh; overflow:hidden; background:#fafafa;
-    font:var(--ui)/1.4 system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Sans","Noto Sans JP",sans-serif; color:#333;
+  :root{
+    --gap:16px;          /* パネル間の間隔 */
+    --bar-h:56px;        /* 上部バーの高さ目安 */
+    --ui:14px;
   }
-  header{display:flex; align-items:center; gap:48px; padding:10px 16px; border-bottom:1px solid #e6e6e6; background:#fff;}
-  header .grp{display:flex; align-items:center; gap:8px}
-  input[type="number"]{width:84px; padding:6px 8px; border:1px solid #cfcfcf; border-radius:8px}
-  input[type="range"]{width:160px}
-  button{appearance:none; border:1px solid #cfcfcf; border-radius:8px; background:#fff; padding:6px 10px; cursor:pointer}
-  main{min-height:0; display:grid; grid-template-columns:minmax(320px,1fr) minmax(320px,1fr); gap:var(--gap); padding:var(--gap); box-sizing:border-box; overflow:hidden;}
-  canvas{display:block; width:100%; height:100%; background:#fff; border:1px solid #eee; border-radius:12px; box-shadow:0 1px 0 rgba(0,0,0,.03) inset;}
-  /* 2パネルを少し小さめに */
-  main{ max-width: 1200px; margin-inline:auto; }
+  html,body{height:100%;margin:0}
+  body{
+    display:grid; grid-template-rows: var(--bar-h) 1fr;
+    min-height:100svh; background:#fafafa; color:#333;
+    font:var(--ui)/1.5 system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Sans","Noto Sans JP",sans-serif;
+  }
 
-  /* 起動オーバーレイ＆終了ボタン */
-  #startFS{position:fixed; inset:0; display:grid; place-items:center; background:rgba(0,0,0,.5); color:#fff; z-index:1000;}
-  #startFS.is-hidden{display:none!important}
-  #startFS .panel{position:relative; background:#111; padding:28px 32px; border-radius:16px; text-align:center; max-width:min(92vw,560px); box-shadow:0 10px 30px rgba(0,0,0,.35)}
-  #startFS h1{margin:0 0 10px; font-size:22px}
-  #startBtn{font-size:16px; padding:10px 18px; border-radius:10px; border:1px solid #3aa36e; background:#38c172; color:#fff; cursor:pointer}
-  #startClose{position:absolute; top:8px; right:8px; width:32px; height:32px; border-radius:8px; border:1px solid #444; background:#222; color:#fff; cursor:pointer; font-size:18px; line-height:30px; padding:0}
-  #startClose:hover{background:#2a2a2a}
-  #quitBtn{position:fixed; top:10px; right:10px; z-index:900; padding:8px 12px; border-radius:10px; border:1px solid #d66; background:#f66; color:#fff; font-weight:600; cursor:pointer}
-  #quitBtn:disabled{opacity:.5; cursor:default}
+  /* 上部バー（a, x, 軌跡） */
+  header{
+    background:#fff; border-bottom:1px solid #e6e6e6; padding:10px 12px;
+    display:flex; gap:24px; align-items:center; flex-wrap:wrap;
+  }
+  .grp{display:flex; align-items:center; gap:8px}
+  input[type="number"]{width:92px; padding:6px 8px; border:1px solid #cfcfcf; border-radius:8px; font:inherit}
+  input[type="range"]{width:160px}
+  button{appearance:none; border:1px solid #cfcfcf; border-radius:8px; background:#fff; padding:6px 10px; cursor:pointer; font:inherit}
+
+  /* メイン2パネル（コンテナ固定高 + キャンバス100%） */
+  main{
+    min-height:0; padding:var(--gap); box-sizing:border-box; overflow:hidden;
+    display:grid; grid-template-columns: minmax(300px,1fr) minmax(300px,1fr); gap:var(--gap);
+    max-width:1200px; margin-inline:auto;
+  }
+  .panel{
+    background:#fff; border:1px solid #eee; border-radius:12px; box-shadow:0 1px 0 rgba(0,0,0,.03) inset;
+    overflow:hidden; height: calc(88svh - var(--bar-h)); min-height:420px;
+  }
+  canvas{display:block; width:100%; height:100%}
+
+  /* スマホ：縦1カラム＋パネルをさらにコンパクトに */
+  @media (max-width: 960px){
+    :root{ --bar-h:64px }
+    header{gap:12px}
+    .grp{flex:1 1 48%}
+    main{grid-template-columns: 1fr}
+    .panel{height: calc(44svh - var(--bar-h)); min-height:320px}
+    input[type="range"]{width:140px}
+  }
 </style>
 </head>
 <body>
-  <!-- 起動フルスクリーン -->
-  <div id="startFS" aria-hidden="false">
-    <div class="panel">
-      <button id="startClose" aria-label="閉じる">×</button>
-      <h1>全画面で開始</h1>
-      <p>ボタンを押すと全画面表示になります。</p>
-      <button id="startBtn">全画面で開始する</button>
-      <p style="margin-top:10px; font-size:12px; opacity:.8;">※ F11（Macは ⌃⌘F）でも全画面にできます。</p>
-    </div>
-  </div>
-  <button id="quitBtn" title="終了">終了</button>
-
   <header>
     <div class="grp">
       <label id="labA" for="aIn">𝑎:</label>
@@ -61,76 +65,47 @@
   </header>
 
   <main>
-    <canvas id="geom"></canvas>
-    <canvas id="graph"></canvas>
+    <div class="panel"><canvas id="geom"></canvas></div>
+    <div class="panel"><canvas id="graph"></canvas></div>
   </main>
 
 <script>
-/* ===== 共通状態/UI ===== */
+/* ===== 状態 ===== */
 const state = { a:8, x:4, showTrace:false, trace:[] };
-const aIn=document.querySelector('#aIn');
-const xRange=document.querySelector('#xRange');
-const xIn=document.querySelector('#xIn');
-const traceBtn=document.querySelector('#traceBtn');
-const cvsGeom=document.querySelector('#geom');
-const cvsGraph=document.querySelector('#graph');
-const quitBtn=document.querySelector('#quitBtn');
-const startFS=document.getElementById('startFS');
-const startBtn=document.getElementById('startBtn');
-const startClose=document.getElementById('startClose');
+const aIn = document.getElementById('aIn');
+const xIn = document.getElementById('xIn');
+const xRange = document.getElementById('xRange');
+const traceBtn = document.getElementById('traceBtn');
+const cvsGeom = document.getElementById('geom');
+const cvsGraph = document.getElementById('graph');
 const DPR = Math.max(1, window.devicePixelRatio||1);
+const mqCompact = window.matchMedia('(max-width: 960px)');
+const isCompact = ()=> mqCompact.matches;
 
-/* 幾何パネルの文字は2倍のまま */
-const GEO_FONT_PX = 28;
-const GEO_LINE_H  = Math.round(GEO_FONT_PX*1.25);
-
-/* ===== フルスクリーン ===== */
-function showStartOverlay(){ startFS.classList.remove('is-hidden'); startFS.setAttribute('aria-hidden','false'); }
-function hideStartOverlay(){ startFS.classList.add('is-hidden'); startFS.setAttribute('aria-hidden','true'); }
-async function enterFullscreen(){
-  try{
-    const el=document.documentElement;
-    if(el.requestFullscreen) await el.requestFullscreen();
-    if(screen.orientation?.lock) screen.orientation.lock('landscape').catch(()=>{});
-  }finally{ hideStartOverlay(); }
-}
-async function exitFullscreen(){ if(document.fullscreenElement){ try{ await document.exitFullscreen(); }catch(e){} } }
-async function quitApp(){
-  quitBtn.disabled=true;
-  await exitFullscreen();
-  try{ window.close(); }catch(e){}
-  try{ const w=window.open('','_self'); w.close(); }catch(e){}
-  setTimeout(()=>{ alert('このタブは自動では閉じられません。タブの × または Ctrl+W / ⌘W で閉じてください。'); quitBtn.disabled=false; }, 300);
-}
-quitBtn.addEventListener('click', quitApp);
-startBtn?.addEventListener('click', enterFullscreen);
-startClose?.addEventListener('click', hideStartOverlay);
-document.addEventListener('DOMContentLoaded', showStartOverlay);
-
-/* ===== 入力 ===== */
+/* ===== 入力（双方向同期） ===== */
 function applyA(){
   const a = Math.max(0.1, parseFloat(aIn.value)||8);
   const ratio = state.a>0 ? state.x/state.a : 0;
   state.a = a;
-  state.x = Math.min(a, Math.max(0, ratio*a));
+  state.x = Math.max(0, Math.min(a, ratio*a));
   xIn.max = a;
   xIn.value = state.x.toFixed(3);
   xRange.value = Math.round((state.x/state.a)*1000);
   if (state.showTrace) state.trace = [];
-  drawAll();
+  redrawAll();
 }
 function applyXFromRange(){
   state.x = (parseInt(xRange.value)/1000)*state.a;
   xIn.value = state.x.toFixed(3);
   if (state.showTrace) pushTrace();
-  drawAll();
+  redrawAll();
 }
 function applyXFromInput(){
   const x = Math.max(0, Math.min(state.a, parseFloat(xIn.value)||0));
   state.x = x;
   xRange.value = Math.round((state.x/state.a)*1000);
   if (state.showTrace) pushTrace();
-  drawAll();
+  redrawAll();
 }
 aIn.addEventListener('input', applyA);
 xRange.addEventListener('input', applyXFromRange);
@@ -140,7 +115,7 @@ traceBtn.addEventListener('click', ()=>{
   traceBtn.textContent = state.showTrace ? '軌跡を非表示' : '軌跡を表示';
   state.trace = [];
   if (state.showTrace) pushTrace();
-  drawAll();
+  redrawAll();
 });
 function pushTrace(){
   const y = state.x*(state.a-state.x);
@@ -151,44 +126,46 @@ function pushTrace(){
   }
 }
 
-/* ===== キャンバス整形 ===== */
+/* ===== 自動リサイズ（ResizeObserver + DPR） ===== */
 function fitCanvas(cvs){
   const r = cvs.getBoundingClientRect();
-  const w = Math.max(1, Math.floor(r.width*DPR));
-  const h = Math.max(1, Math.floor(r.height*DPR));
-  if (cvs.width!==w || cvs.height!==h){ cvs.width=w; cvs.height=h; }
+  const w = Math.max(1, Math.round(r.width * DPR));
+  const h = Math.max(1, Math.round(r.height * DPR));
+  if (cvs.width!==w || cvs.height!==h){ cvs.width = w; cvs.height = h; }
   const ctx = cvs.getContext('2d');
   ctx.setTransform(DPR,0,0,DPR,0,0);
   ctx.imageSmoothingEnabled = true;
-  return ctx;
+  return {ctx, cssW:r.width, cssH:r.height};
 }
-CanvasRenderingContext2D.prototype.roundRect ??= function(x,y,w,h,r){
-  r=Math.max(0,Math.min(r,Math.min(w,h)/2));
-  this.beginPath();
-  this.moveTo(x+r,y);
-  this.arcTo(x+w,y,  x+w,y+h, r);
-  this.arcTo(x+w,y+h,x,  y+h, r);
-  this.arcTo(x,  y+h,x,  y,   r);
-  this.arcTo(x,  y,  x+w,y,   r);
-  this.closePath();
+function attachAutoResize(cvs, draw){
+  const ro = new ResizeObserver(()=> { const {ctx,cssW,cssH}=fitCanvas(cvs); draw(ctx, cssW, cssH); });
+  ro.observe(cvs.parentElement);
+  // 初回も描く
+  const {ctx,cssW,cssH}=fitCanvas(cvs); draw(ctx, cssW, cssH);
+}
+function redrawAll(){
+  const g1 = fitCanvas(cvsGeom); drawGeom(g1.ctx, g1.cssW, g1.cssH);
+  const g2 = fitCanvas(cvsGraph); drawGraph(g2.ctx, g2.cssW, g2.cssH);
 }
 
-/* ===== ロープタイル ===== */
+/* ===== ロープのタイル（茶色地に黒の斜線 / 角の滑らかさ改善） ===== */
 function makeRopeTile(thickness){
   const h = Math.max(8, Math.round(thickness));
   const w = Math.max(96, Math.round(h*6));
   const c = document.createElement('canvas'); c.width=w; c.height=h;
   const g = c.getContext('2d');
+  // ベース（薄茶）
   g.fillStyle='#d8c090'; g.fillRect(0,0,w,h);
+  // 円筒陰影
   const grd = g.createLinearGradient(0,0,0,h);
   grd.addColorStop(0,'rgba(0,0,0,0.18)');
   grd.addColorStop(0.5,'rgba(0,0,0,0.00)');
   grd.addColorStop(1,'rgba(0,0,0,0.22)');
   g.fillStyle=grd; g.fillRect(0,0,w,h);
 
+  // 縞（/// と \\\ を重ねて密度UP）— 黒
   const targetPeriod = Math.max(6, Math.round(h*0.40));
-  let N = Math.max(20, Math.floor(w/targetPeriod));
-  if (N%2===1) N++;
+  let N = Math.max(20, Math.floor(w/targetPeriod)); if (N%2===1) N++;
   const period = Math.max(4, Math.floor(w/N));
   const stripeW = Math.max(2, Math.floor(period/2));
 
@@ -206,22 +183,14 @@ function makeRopeTile(thickness){
   for(let i=-N;i<2*N;i++){ g.fillRect(i*period+stripeW, -w, stripeW, 2*w); }
   g.restore();
 
+  // 微小ノイズ
   const img = g.getImageData(0,0,w,h);
   const dt = img.data;
   for(let i=0;i<dt.length;i+=4){
-    const n=(Math.random()-0.5)*12;
-    dt[i]+=n; dt[i+1]+=n; dt[i+2]+=n;
+    const n=(Math.random()-0.5)*12; dt[i]+=n; dt[i+1]+=n; dt[i+2]+=n;
   }
   g.putImageData(img,0,0);
-  return {image:c,w,h};
-}
-function drawRoundRectPath(ctx,x,y,w,h,r){
-  ctx.moveTo(x+r,y);
-  ctx.arcTo(x+w,y, x+w,y+h, r);
-  ctx.arcTo(x+w,y+h, x,y+h, r);
-  ctx.arcTo(x,  y+h, x,y,   r);
-  ctx.arcTo(x,  y,   x+w,y, r);
-  ctx.closePath();
+  return {image:c, w, h};
 }
 function drawRopeEdge(ctx,tile,x1,y1,x2,y2,phase){
   const dx=x2-x1, dy=y2-y1, len=Math.hypot(dx,dy);
@@ -232,13 +201,14 @@ function drawRopeEdge(ctx,tile,x1,y1,x2,y2,phase){
   const pat=ctx.createPattern(tile.image,'repeat');
   if (pat && pat.setTransform){ pat.setTransform(new DOMMatrix().translate(-phase,-tile.h/2)); }
   else{ ctx.translate(-phase,0); }
-  ctx.fillStyle=pat;
-  ctx.fillRect(0,-tile.h/2, len, tile.h);
+  ctx.fillStyle=pat; ctx.fillRect(0,-tile.h/2, len, tile.h);
   ctx.restore();
   return (phase+len)%tile.w;
 }
 function drawRopeArc(ctx,tile,cx,cy,r,a0,a1,phase){
-  const L=r*Math.abs(a1-a0), step=Math.max(3,Math.ceil(L/6));
+  const L=r*Math.abs(a1-a0);
+  const segMax = isCompact()? 4.5 : 6.0;     // 角を滑らかに
+  const step=Math.max(4,Math.ceil(L/segMax));
   let px=cx+r*Math.cos(a0), py=cy+r*Math.sin(a0);
   for(let i=1;i<=step;i++){
     const t=i/step, a=a0+(a1-a0)*t;
@@ -250,13 +220,14 @@ function drawRopeArc(ctx,tile,cx,cy,r,a0,a1,phase){
 }
 function drawRopeRect(ctx,x,y,w,h,th){
   const tile = makeRopeTile(th);
-  let r = Math.min(Math.min(w,h)/2-1, th*3.5);
+  let r = Math.min(Math.min(w,h)/2-1, th*(isCompact()?2.6:3.3));
   r = Math.max(0, r);
 
   ctx.save();
+  // 2重の輪郭の間を塗るため evenodd でクリップ
   ctx.beginPath();
-  drawRoundRectPath(ctx, x-th/2, y-th/2, w+th, h+th, r+th/2);
-  drawRoundRectPath(ctx, x+th/2, y+th/2, w-th, h-th, Math.max(0,r-th/2));
+  roundRectPath(ctx, x-th/2, y-th/2, w+th, h+th, r+th/2);
+  roundRectPath(ctx, x+th/2, y+th/2, w-th, h-th, Math.max(0,r-th/2));
   ctx.clip('evenodd');
 
   let phase=0;
@@ -277,32 +248,40 @@ function drawRopeRect(ctx,x,y,w,h,th){
   }
   ctx.restore();
 
+  // 外枠（黒）
   ctx.save();
-  ctx.strokeStyle='#000';
-  ctx.lineWidth=Math.max(1.4, th*0.08);
-  ctx.beginPath(); ctx.roundRect(x-th/2, y-th/2, w+th, h+th, r+th/2); ctx.stroke();
-  ctx.beginPath(); ctx.roundRect(x+th/2, y+th/2, w-th, h-th, Math.max(0,r-th/2)); ctx.stroke();
+  ctx.strokeStyle='#000'; ctx.lineWidth=Math.max(1.4, th*0.08);
+  ctx.beginPath(); roundRectPath(ctx, x-th/2, y-th/2, w+th, h+th, r+th/2); ctx.stroke();
+  ctx.beginPath(); roundRectPath(ctx, x+th/2, y+th/2, w-th, h-th, Math.max(0,r-th/2)); ctx.stroke();
   ctx.restore();
 }
+function roundRectPath(ctx,x,y,w,h,r){
+  r=Math.max(0,Math.min(r,Math.min(w,h)/2));
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,   x+w,y+h, r);
+  ctx.arcTo(x+w,y+h, x,  y+h, r);
+  ctx.arcTo(x,  y+h, x,  y,   r);
+  ctx.arcTo(x,  y,   x+w,y,   r);
+  ctx.closePath();
+}
 
-/* ===== 幾何パネル（小さめに描画） ===== */
-const 𝑎='𝑎', 𝑥='𝑥';
-function drawGeom(){
-  const ctx = fitCanvas(cvsGeom);
-  const W = cvsGeom.clientWidth, H = cvsGeom.clientHeight;
+/* ===== 幾何パネル ===== */
+const GEO_FONT_PX = 28;  // 幾何の文字は大きめ維持
+const GEO_LINE_H  = Math.round(GEO_FONT_PX*1.25);
+
+function drawGeom(ctx, W, H){
   ctx.clearRect(0,0,W,H);
   ctx.font = `${GEO_FONT_PX}px system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Sans","Noto Sans JP",sans-serif`;
 
-  const SHRINK = 0.88;
+  // 余白（スマホは控えめ）
+  const margin = isCompact()? 20 : 24;
+  const LEFT_SAFE   = isCompact()? 12 : 12;
+  const RIGHT_SAFE  = isCompact()? 160: 180;
+  const TOP_SAFE    = isCompact()? GEO_FONT_PX*3 + 18 : GEO_FONT_PX*4 + 28;
+  const BOTTOM_SAFE = isCompact()? GEO_FONT_PX*2 + 32 : GEO_FONT_PX*2 + 42;
 
-  const margin = 24;
-  const LEFT_SAFE   = 12;
-  const RIGHT_SAFE  = 180;
-  const TOP_SAFE    = GEO_FONT_PX*4 + 28;
-  const BOTTOM_SAFE = GEO_FONT_PX*2 + 42;
-
-  const baseLen   = Math.min(W, H);
-  const thickness = Math.max(10, Math.min(34, Math.round(baseLen * 0.013)));
+  // 内箱をさらに少し縮めて見切れ対策
+  const SHRINK = isCompact()? 0.86 : 0.88;
 
   const aw = Math.max(1, W - (margin*2 + LEFT_SAFE + RIGHT_SAFE));
   const ah = Math.max(1, H - (margin*2 + TOP_SAFE + BOTTOM_SAFE));
@@ -311,6 +290,9 @@ function drawGeom(){
   const innerH = ah*SHRINK;
   const padX = (aw - innerW)/2;
   const padY = (ah - innerH)/2;
+
+  const baseLen = Math.min(W,H);
+  const thickness = Math.max(10, Math.min(34, Math.round(baseLen * (isCompact()?0.010:0.013))));
 
   const usableW = Math.max(1, innerW - thickness);
   const usableH = Math.max(1, innerH - thickness);
@@ -324,9 +306,11 @@ function drawGeom(){
 
   drawRopeRect(ctx, ox, oy - h, w, h, thickness);
 
-  // 寸法線・ラベル
+  // 寸法線・ラベル（𝑥, 𝑎 は数学斜体）
   ctx.save();
   ctx.strokeStyle='#666'; ctx.fillStyle='#333'; ctx.lineWidth=1.6;
+  const 𝑎='𝑎', 𝑥='𝑥';
+
   const tx = Math.round(ox + w + 22);
   ctx.beginPath(); ctx.moveTo(tx, oy-h); ctx.lineTo(tx, oy);
   ctx.moveTo(tx-8, oy-h); ctx.lineTo(tx+8, oy-h);
@@ -341,7 +325,7 @@ function drawGeom(){
   ctx.fillText(wLabel, ox + w/2 - ctx.measureText(wLabel).width/2, ty + GEO_FONT_PX*0.9);
   ctx.restore();
 
-  // 情報ボックス
+  // 情報ボックス（大きめ文字のまま）
   ctx.save();
   const yVal = state.x*(state.a-state.x);
   const lines = [
@@ -355,13 +339,13 @@ function drawGeom(){
   const boxW = maxw + pad*2;
   const boxH = GEO_LINE_H*lines.length + pad*2;
   ctx.fillStyle='#fff8d2'; ctx.strokeStyle='#b28a20'; ctx.lineWidth=1.6;
-  ctx.beginPath(); ctx.roundRect(bx, by, boxW, boxH, 12); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); roundRectPath(ctx, bx, by, boxW, boxH, 12); ctx.fill(); ctx.stroke();
   ctx.fillStyle='#333';
   lines.forEach((s,i)=> ctx.fillText(s, bx+pad, by+pad + GEO_LINE_H*(i+0.75)));
   ctx.restore();
 }
 
-/* ===== グラフ ===== */
+/* ===== グラフパネル ===== */
 function niceTicks(min, max, maxCount=7){
   const span = max-min; if (span<=0 || !isFinite(span)) return {start:min, step:1, count:2};
   const stepRaw = span / Math.max(1, maxCount);
@@ -373,34 +357,33 @@ function niceTicks(min, max, maxCount=7){
   const count = Math.floor((max-start)/step)+1;
   return {start, step, count:Math.max(2,count)};
 }
-function drawGraph(){
-  const ctx = fitCanvas(cvsGraph);
-  const W = cvsGraph.clientWidth, H = cvsGraph.clientHeight;
+function drawGraph(ctx, W, H){
   ctx.clearRect(0,0,W,H);
-  ctx.font = '12px system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Sans","Noto Sans JP",sans-serif';
+  const style = isCompact()
+    ? {L:54,R:10,T:18,B:38, grid:6, fs:12}
+    : {L:70,R:20,T:30,B:50, grid:10, fs:14};
+  ctx.font = `${style.fs}px system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Sans","Noto Sans JP",sans-serif`;
 
-  const marginL=88, marginR=20, marginT=28, marginB=56;
-  const plotW0=Math.max(1, W-marginL-marginR), plotH0=Math.max(1, H-marginT-marginB);
+  const plotW0=Math.max(1, W - style.L - style.R);
+  const plotH0=Math.max(1, H - style.T - style.B);
+  const SHRINK = isCompact()? 0.90 : 0.92;
+  const plotW = plotW0*SHRINK, plotH=plotH0*SHRINK;
+  const offX = style.L + (plotW0-plotW)/2;
+  const offY = style.T + (plotH0-plotH)/2;
 
-  // 少し小さめに中央へ
-  const SHRINK = 0.90;
-  const plotW = plotW0*SHRINK;
-  const plotH = plotH0*SHRINK;
-  const offX  = marginL + (plotW0-plotW)/2;
-  const offY  = marginT + (plotH0-plotH)/2;
-
-  // ★ 軸の最大値：x 最大 = a + 2、y 最大 = 面積最大 + 2 = a^2/4 + 2
+  // 軸の最大値（要求通り）
   const xMin=0, xMax=Math.max(1e-6, state.a + 2);
   const yMin=0, yMax=Math.max(1e-6, state.a*state.a/4 + 2);
 
   const X = v=> offX + (v-xMin)/(xMax-xMin)*plotW;
   const Y = v=> offY + (1-(v-yMin)/(yMax-yMin))*plotH;
 
+  // 背景・グリッド
   ctx.fillStyle='#f7f7f7'; ctx.fillRect(offX,offY,plotW,plotH);
   ctx.strokeStyle='#e5e5e5'; ctx.lineWidth=1;
 
-  const tx = niceTicks(xMin, xMax, 7);
-  const ty = niceTicks(yMin, yMax, 7);
+  const tx = niceTicks(xMin, xMax, style.grid);
+  const ty = niceTicks(yMin, yMax, style.grid);
 
   for(let i=0;i<tx.count;i++){
     const xv=tx.start+tx.step*i, sx=X(xv);
@@ -415,10 +398,12 @@ function drawGraph(){
     ctx.fillStyle='#555'; ctx.fillText(s, offX-w-8, sy+4);
   }
 
+  // 軸線
   ctx.strokeStyle='#666'; ctx.lineWidth=1.5;
   ctx.beginPath(); ctx.moveTo(offX,offY+plotH); ctx.lineTo(offX+plotW,offY+plotH); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(offX,offY); ctx.lineTo(offX,offY+plotH); ctx.stroke();
 
+  // 軌跡（折れ線）
   if (state.showTrace && state.trace.length>=2){
     ctx.strokeStyle='#1f77b4'; ctx.lineWidth=2;
     ctx.beginPath();
@@ -427,6 +412,7 @@ function drawGraph(){
     ctx.stroke();
   }
 
+  // 現在の点
   const px=state.x, py=state.x*(state.a-state.x);
   ctx.fillStyle='#d62728';
   ctx.beginPath(); ctx.arc(X(px),Y(py),5,0,Math.PI*2); ctx.fill();
@@ -436,7 +422,7 @@ function drawGraph(){
   const tw = ctx.measureText(label).width;
   const txp = X(px)+10, typ = Y(py)-10;
   ctx.fillStyle='rgba(255,255,255,.92)'; ctx.strokeStyle='#666';
-  ctx.beginPath(); ctx.roundRect(txp-6,typ-16,tw+12,22,8); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); roundRectPath(ctx, txp-6, typ-16, tw+12, 22, 8); ctx.fill(); ctx.stroke();
   ctx.fillStyle='#333'; ctx.fillText(label, txp, typ);
 
   ctx.fillStyle='#333';
@@ -446,13 +432,17 @@ function drawGraph(){
 
 /* ===== 初期化 ===== */
 (function init(){
-  document.getElementById('labA').textContent='𝑎:'; document.getElementById('labX').textContent='𝑥:';
+  document.getElementById('labA').textContent='𝑎:'; 
+  document.getElementById('labX').textContent='𝑥:';
   xIn.max=state.a; aIn.value=state.a; xIn.value=state.x; xRange.value=Math.round((state.x/state.a)*1000);
-  drawAll();
-  window.addEventListener('resize', drawAll, {passive:true});
-  window.addEventListener('orientationchange', drawAll, {passive:true});
+
+  // 各パネルに自動リサイズを付与（スライダー操作でも高さは固定のまま）
+  attachAutoResize(cvsGeom, drawGeom);
+  attachAutoResize(cvsGraph, drawGraph);
+
+  // 回転などでも再描画
+  window.addEventListener('orientationchange', ()=> setTimeout(redrawAll, 50), {passive:true});
 })();
-function drawAll(){ drawGeom(); drawGraph(); }
 </script>
 </body>
 </html>
