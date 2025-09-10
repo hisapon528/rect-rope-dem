@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>教科書p102 応用例題3（ロープ長方形 / レスポンシブ）</title>
+<title>教科書p102 応用例題3（幾何→グラフ表示切替）</title>
 <style>
   :root{
     --gap:16px;          /* パネル間の間隔 */
@@ -17,7 +17,7 @@
     font:var(--ui)/1.5 system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Sans","Noto Sans JP",sans-serif;
   }
 
-  /* 上部バー（a, x, 軌跡） */
+  /* 上部バー（a, x, 軌跡, グラフ表示） */
   header{
     background:#fff; border-bottom:1px solid #e6e6e6; padding:10px 12px;
     display:flex; gap:24px; align-items:center; flex-wrap:wrap;
@@ -27,12 +27,15 @@
   input[type="range"]{width:160px}
   button{appearance:none; border:1px solid #cfcfcf; border-radius:8px; background:#fff; padding:6px 10px; cursor:pointer; font:inherit}
 
-  /* メイン2パネル（コンテナ固定高 + キャンバス100%） */
+  /* メイン2パネル（固定高 + キャンバス100%） */
   main{
     min-height:0; padding:var(--gap); box-sizing:border-box; overflow:hidden;
     display:grid; grid-template-columns: minmax(300px,1fr) minmax(300px,1fr); gap:var(--gap);
     max-width:1200px; margin-inline:auto;
   }
+  /* 1カラム時（グラフ非表示） */
+  main.onecol{ grid-template-columns: 1fr; }
+
   .panel{
     background:#fff; border:1px solid #eee; border-radius:12px; box-shadow:0 1px 0 rgba(0,0,0,.03) inset;
     overflow:hidden; height: calc(88svh - var(--bar-h)); min-height:420px;
@@ -62,11 +65,14 @@
       <input id="xIn" type="number" step="0.1" min="0" value="4">
     </div>
     <button id="traceBtn">軌跡を表示</button>
+    <button id="graphBtn">グラフ表示</button>
   </header>
 
-  <main>
-    <div class="panel"><canvas id="geom"></canvas></div>
-    <div class="panel"><canvas id="graph"></canvas></div>
+  <!-- 最初は 1 カラム（幾何のみ） -->
+  <main id="main" class="onecol">
+    <div class="panel" id="geomPanel"><canvas id="geom"></canvas></div>
+    <!-- グラフは初期非表示 -->
+    <div class="panel" id="graphPanel" style="display:none"><canvas id="graph"></canvas></div>
   </main>
 
 <script>
@@ -76,8 +82,11 @@ const aIn = document.getElementById('aIn');
 const xIn = document.getElementById('xIn');
 const xRange = document.getElementById('xRange');
 const traceBtn = document.getElementById('traceBtn');
+const graphBtn = document.getElementById('graphBtn');
 const cvsGeom = document.getElementById('geom');
 const cvsGraph = document.getElementById('graph');
+const graphPanel = document.getElementById('graphPanel');
+const mainWrap = document.getElementById('main');
 const DPR = Math.max(1, window.devicePixelRatio||1);
 const mqCompact = window.matchMedia('(max-width: 960px)');
 const isCompact = ()=> mqCompact.matches;
@@ -110,6 +119,7 @@ function applyXFromInput(){
 aIn.addEventListener('input', applyA);
 xRange.addEventListener('input', applyXFromRange);
 xIn.addEventListener('input', applyXFromInput);
+
 traceBtn.addEventListener('click', ()=>{
   state.showTrace = !state.showTrace;
   traceBtn.textContent = state.showTrace ? '軌跡を非表示' : '軌跡を表示';
@@ -117,6 +127,22 @@ traceBtn.addEventListener('click', ()=>{
   if (state.showTrace) pushTrace();
   redrawAll();
 });
+
+/* ===== グラフ表示の切替 ===== */
+let graphVisible = false;
+graphBtn.addEventListener('click', ()=>{
+  graphVisible = !graphVisible;
+  graphBtn.textContent = graphVisible ? 'グラフを隠す' : 'グラフ表示';
+  graphPanel.style.display = graphVisible ? '' : 'none';
+  mainWrap.classList.toggle('onecol', !graphVisible);
+  // 表示状態が変わったらキャンバスをフィットさせて再描画
+  setTimeout(()=> {
+    fitCanvas(cvsGeom); if (graphVisible) fitCanvas(cvsGraph);
+    redrawAll();
+  }, 0);
+});
+
+/* ===== 軌跡 ===== */
 function pushTrace(){
   const y = state.x*(state.a-state.x);
   const last = state.trace[state.trace.length-1];
@@ -140,15 +166,17 @@ function fitCanvas(cvs){
 function attachAutoResize(cvs, draw){
   const ro = new ResizeObserver(()=> { const {ctx,cssW,cssH}=fitCanvas(cvs); draw(ctx, cssW, cssH); });
   ro.observe(cvs.parentElement);
-  // 初回も描く
+  // 初回
   const {ctx,cssW,cssH}=fitCanvas(cvs); draw(ctx, cssW, cssH);
 }
 function redrawAll(){
   const g1 = fitCanvas(cvsGeom); drawGeom(g1.ctx, g1.cssW, g1.cssH);
-  const g2 = fitCanvas(cvsGraph); drawGraph(g2.ctx, g2.cssW, g2.cssH);
+  if (graphVisible) {
+    const g2 = fitCanvas(cvsGraph); drawGraph(g2.ctx, g2.cssW, g2.cssH);
+  }
 }
 
-/* ===== ロープのタイル（茶色地に黒の斜線 / 角の滑らかさ改善） ===== */
+/* ===== ロープのタイル（薄茶 + 黒ストライプ / 角なめらか） ===== */
 function makeRopeTile(thickness){
   const h = Math.max(8, Math.round(thickness));
   const w = Math.max(96, Math.round(h*6));
@@ -266,7 +294,7 @@ function roundRectPath(ctx,x,y,w,h,r){
 }
 
 /* ===== 幾何パネル ===== */
-const GEO_FONT_PX = 28;  // 幾何の文字は大きめ維持
+const GEO_FONT_PX = 28;  // 幾何の文字は大きめ
 const GEO_LINE_H  = Math.round(GEO_FONT_PX*1.25);
 
 function drawGeom(ctx, W, H){
@@ -436,9 +464,9 @@ function drawGraph(ctx, W, H){
   document.getElementById('labX').textContent='𝑥:';
   xIn.max=state.a; aIn.value=state.a; xIn.value=state.x; xRange.value=Math.round((state.x/state.a)*1000);
 
-  // 各パネルに自動リサイズを付与（スライダー操作でも高さは固定のまま）
+  // 幾何は常時監視、グラフは最初非表示でも監視を張っておく
   attachAutoResize(cvsGeom, drawGeom);
-  attachAutoResize(cvsGraph, drawGraph);
+  attachAutoResize(cvsGraph, drawGraph); // 非表示でもOK。表示切替時にfit+再描画
 
   // 回転などでも再描画
   window.addEventListener('orientationchange', ()=> setTimeout(redrawAll, 50), {passive:true});
